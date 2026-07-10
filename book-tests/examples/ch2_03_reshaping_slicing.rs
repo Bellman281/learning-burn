@@ -16,7 +16,7 @@ fn main() {
 
     let rows = m.select(0, Tensor::<B, 1, Int>::from_data([0, 2], &dev));
 
-    println!("flat    =\n{}", flat);
+    println!("flat     =\n{}", flat);
     println!("piece    =\n{}", piece);
     println!("first col=\n{}", col);
     println!("rows 0,2 =\n{}", rows);
