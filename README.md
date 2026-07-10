@@ -1,6 +1,7 @@
 # Learning Burn — Code Examples
 
-Compilable, tested code examples that accompany the **Learning Burn** book.
+Compilable, tested code examples that accompany the **Learning Burn** book
+(by H0531N and Bellman281).
 
 Every example is a small, self-contained program you can build and run while
 reading. The examples are organized by chapter and are each verified with
@@ -12,11 +13,7 @@ actually compiles.
 These examples are written for [**Burn**](https://github.com/tracel-ai/burn), the
 Rust deep learning framework. All credit for the framework itself goes to the
 Burn authors and contributors. This repository contains **original example
-code** demonstrating Burn's public API — it does not copy Burn's source. Burn is
-dual-licensed under
-[MIT](https://github.com/tracel-ai/burn/blob/main/LICENSE-MIT) and
-[Apache-2.0](https://github.com/tracel-ai/burn/blob/main/LICENSE-APACHE), and
-this repository follows the same dual-license model (see [License](#license)).
+code** demonstrating Burn's public API — it does not copy Burn's source.
 
 ## Running the examples
 
@@ -40,11 +37,12 @@ cargo run --example ch1_02_basic_creation  # run a single example
 | 8 | Loss Functions | MSE, cross-entropy |
 | 9 | Optimizers | SGD training loop |
 
-## License
+## License & attribution
 
-This repository is dual-licensed, matching the Burn framework, under either of:
+Licensed under the Apache License, Version 2.0 — see [`LICENSE`](LICENSE).
 
-- MIT License ([`LICENSE`](LICENSE))
-- Apache License, Version 2.0 ([`LICENSE-APACHE`](LICENSE-APACHE))
+Copyright © 2026 **H0531N** and **Bellman281**.
 
-at your option. © 2026 H0531N.
+These examples accompany the *Learning Burn* book. If you use or adapt them,
+please attribute this repository:
+<https://github.com/jhosein58/learning-burn> — see [`NOTICE`](NOTICE).
