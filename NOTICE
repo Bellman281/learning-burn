@@ -1,0 +1,15 @@
+Learning Burn — Code Examples
+Copyright 2026 H0531N and Bellman281
+
+This repository contains original example code accompanying the "Learning Burn"
+book (authored by H0531N and Bellman281). The code is licensed under the
+Apache License, Version 2.0 (see the LICENSE file).
+
+If you use, redistribute, or adapt these examples, please attribute this
+repository:
+
+    https://github.com/jhosein58/learning-burn
+
+The examples are written for the Burn deep learning framework
+(https://github.com/tracel-ai/burn), which is licensed separately by its own
+authors and contributors.
