@@ -40,6 +40,9 @@ fn main() {
     let words = ["burn", "rust", "tensor"];
     println!("largest word  = {}", largest(&words)); // "tensor" (lexicographic)
 
-    let p = Pair { first: 1, second: 2 };
+    let p = Pair {
+        first: 1,
+        second: 2,
+    };
     p.show(); // (1, 2)
 }
