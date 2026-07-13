@@ -36,6 +36,15 @@ only caught it because we run every example and read the output.
 printed.** A teaching repository that panics on first execution is worse than no
 repository at all.
 
+The same rule governs the book. Every code listing in it is read out of *this
+repository* at build time — the book keeps no copy of the code, so it cannot
+drift from it. And every program output the book quotes is read from a file
+produced by actually running that example. Neither is ever typed by hand. We
+learned that one the hard way too: a draft of Chapter 10 quoted a gradient of
+`-0.028` where the program prints `-0.12`, because a plausible-looking number
+got typed instead of run. The build now refuses to produce a chapter whose
+outputs were never captured.
+
 ---
 
 ## Who this is for
@@ -90,7 +99,7 @@ mode you enter.
 
 ## Progress
 
-**Book: 7 of 16 chapters drafted.  Examples: 32 of 60 merged.**
+**Book: 11 of 16 chapters drafted.  Examples: 43 of 60 merged.**
 
 The two move independently — a chapter is only drafted once its examples exist
 and have been run, so the code lands first and the prose follows.
@@ -103,11 +112,11 @@ and have been run, so the code lands first and the prose follows.
 | **3** | Matrix Algebra | ✍️ drafted | 3 | ✅ merged |
 | **4** | Linear Algebra | ✍️ drafted | 2 | ✅ merged |
 | **5** | Autodiff | ✍️ drafted | 3 | ✅ merged |
-| **6** | Linear Regression | ✍️ drafted | 2 | 🔜 in review |
-| **7** | Activation Functions | ⬜ planned | 3 | 🔜 in review |
-| **8** | Loss Functions | ⬜ planned | 2 | 🔜 in review |
-| **9** | Optimizers | ⬜ planned | 1 | 🔜 in review |
-| **10** | Backpropagation | ⬜ planned | 3 | 🔜 in review |
+| **6** | Linear Regression | ✍️ drafted | 2 | ✅ merged |
+| **7** | Activation Functions | ✍️ drafted | 3 | ✅ merged |
+| **8** | Loss Functions | ✍️ drafted | 2 | ✅ merged |
+| **9** | Optimizers | ✍️ drafted | 1 | ✅ merged |
+| **10** | Backpropagation | ✍️ drafted | 3 | ✅ merged |
 | **11** | Neural Network from Scratch | ⬜ planned | 4 | 🔜 in review |
 | **12** | Attention & Transformers | ⬜ planned | 4 | 🔜 in review |
 | **13** | Deploying a Model | ⬜ planned | 2 | 🔜 in review |
