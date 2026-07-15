@@ -44,7 +44,7 @@ otherwise would waste your time.
 
 ```bash
 git clone https://github.com/jhosein58/learning-burn
-cd learning-burn/book-tests
+cd learning-burn/rust-examples
 
 cargo run --example ch5_01_backward_gradient    # autodiff: df/dx of sum(x²) is 2x
 cargo run --example ch9_01_sgd_training         # a real training loop, 20 lines
@@ -75,7 +75,7 @@ against autodiff.
 into the binary, backend-agnostic inference, int8 quantisation, memory footprint ·
 running pretrained models with Candle, and when to use it instead of Burn.
 
-Full list in [`book-tests/examples/`](book-tests/examples/).
+Full list in [`rust-examples/examples/`](rust-examples/examples/).
 
 ---
 
