@@ -73,3 +73,16 @@ path = "examples/chapter02/e05_standardize_features/rust.rs"
 [[example]]
 name = "c2e6"
 path = "examples/chapter02/e06_elementwise_masking/rust.rs"
+
+# Chapter 3 — Matrix Operations
+[[example]]
+name = "c3e1"
+path = "examples/chapter03/e01_matmul/rust.rs"
+
+[[example]]
+name = "c3e2"
+path = "examples/chapter03/e02_transpose_matvec_outer/rust.rs"
+
+[[example]]
+name = "c3e3"
+path = "examples/chapter03/e03_structured_and_batched/rust.rs"
