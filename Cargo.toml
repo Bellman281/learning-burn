@@ -95,3 +95,16 @@ path = "examples/chapter04/e01_vector_norm/rust.rs"
 [[example]]
 name = "c4e2"
 path = "examples/chapter04/e02_gram_matrix/rust.rs"
+
+# Chapter 5 — Autodiff
+[[example]]
+name = "c5e1"
+path = "examples/chapter05/e01_backward_gradient/rust.rs"
+
+[[example]]
+name = "c5e2"
+path = "examples/chapter05/e02_gradient_container/rust.rs"
+
+[[example]]
+name = "c5e3"
+path = "examples/chapter05/e03_inner_inference/rust.rs"
