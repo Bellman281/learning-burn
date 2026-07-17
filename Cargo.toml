@@ -1,0 +1,15 @@
+[package]
+name = "learning-burn"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+burn = { version = "0.21.0", features = ["ndarray", "autodiff"] }
+
+[[example]]
+name = "c1e1"
+path = "examples/chapter01/e01_rank_vs_shape/rust.rs"
+
+[[example]]
+name = "c1e2"
+path = "examples/chapter01/e02_basic_creation/rust.rs"
