@@ -7,12 +7,12 @@ edition = "2024"
 burn = { version = "0.21.0", features = ["ndarray", "autodiff"] }
 
 # ---------------------------------------------------------------------------
-# Chapter 1 — Creating Tensors
-# One [[example]] per folder. Run with `cargo run --example c1eN`;
-# run its parity test with `cargo test --example c1eN` (NOT plain `cargo test`,
+# One [[example]] per folder. Run with `cargo run --example cNeM`;
+# run its parity test with `cargo test --example cNeM` (NOT plain `cargo test`,
 # which skips example targets).
 # ---------------------------------------------------------------------------
 
+# Chapter 1 — Creating Tensors
 [[example]]
 name = "c1e1"
 path = "examples/chapter01/e01_rank_vs_shape/rust.rs"
@@ -48,3 +48,28 @@ path = "examples/chapter01/e08_ownership_cloning/rust.rs"
 [[example]]
 name = "c1e9"
 path = "examples/chapter01/e09_display_and_closeness/rust.rs"
+
+# Chapter 2 — Tensor Operations
+[[example]]
+name = "c2e1"
+path = "examples/chapter02/e01_arithmetic/rust.rs"
+
+[[example]]
+name = "c2e2"
+path = "examples/chapter02/e02_broadcasting/rust.rs"
+
+[[example]]
+name = "c2e3"
+path = "examples/chapter02/e03_reshaping_slicing/rust.rs"
+
+[[example]]
+name = "c2e4"
+path = "examples/chapter02/e04_reductions/rust.rs"
+
+[[example]]
+name = "c2e5"
+path = "examples/chapter02/e05_standardize_features/rust.rs"
+
+[[example]]
+name = "c2e6"
+path = "examples/chapter02/e06_elementwise_masking/rust.rs"
