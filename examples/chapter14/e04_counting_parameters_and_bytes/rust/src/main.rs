@@ -27,8 +27,8 @@ impl<B: Backend> Mlp<B> {
 }
 
 fn main() {
-    let device = Default::default();
-    let model: Mlp<MyBackend> = Mlp::new(&device);
+    let dev = Default::default();
+    let model: Mlp<MyBackend> = Mlp::new(&dev);
 
     let params = model.num_params();
     println!("parameters   = {params}");
