@@ -38,10 +38,10 @@ impl<B: Backend> Model<B> {
 }
 
 fn main() {
-    let device = Default::default();
+    let dev = Default::default();
 
-    let x = Tensor::<MyBackend, 2>::from_floats([[2.0]], &device);
-    let model: Model<MyBackend> = Model::new(&device);
+    let x = Tensor::<MyBackend, 2>::from_floats([[2.0]], &dev);
+    let model: Model<MyBackend> = Model::new(&dev);
     let original = model.forward(x.clone());
 
     // --- Full precision (f32): exact round-trip ---
@@ -51,8 +51,8 @@ fn main() {
         .clone()
         .save_file(full_path.clone(), &full)
         .expect("save full");
-    let from_full: Model<MyBackend> = Model::new(&device)
-        .load_file(full_path.clone(), &full, &device)
+    let from_full: Model<MyBackend> = Model::new(&dev)
+        .load_file(full_path.clone(), &full, &dev)
         .expect("load full");
     let pred_full = from_full.forward(x.clone());
 
@@ -62,8 +62,8 @@ fn main() {
     model
         .save_file(compact_path.clone(), &compact)
         .expect("save compact");
-    let from_compact: Model<MyBackend> = Model::new(&device)
-        .load_file(compact_path.clone(), &compact, &device)
+    let from_compact: Model<MyBackend> = Model::new(&dev)
+        .load_file(compact_path.clone(), &compact, &dev)
         .expect("load compact");
     let pred_compact = from_compact.forward(x);
     let full_size = std::fs::metadata(full_path.with_extension("mpk"))
