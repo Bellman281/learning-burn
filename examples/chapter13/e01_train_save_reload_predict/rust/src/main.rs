@@ -34,14 +34,14 @@ impl<B: Backend> Model<B> {
     }
 }
 fn main() {
-    let device = Default::default();
+    let dev = Default::default();
     let path = std::env::temp_dir().join("burn_ch13_model");
     let recorder = CompactRecorder::new();
 
     // ---- 1. TRAIN (fit y = 2x + 1) ----
-    let x = Tensor::<Train, 2>::from_floats([[1.0], [2.0], [3.0], [4.0]], &device);
-    let y = Tensor::<Train, 2>::from_floats([[3.0], [5.0], [7.0], [9.0]], &device);
-    let mut model: Model<Train> = Model::new(&device);
+    let x = Tensor::<Train, 2>::from_floats([[1.0], [2.0], [3.0], [4.0]], &dev);
+    let y = Tensor::<Train, 2>::from_floats([[3.0], [5.0], [7.0], [9.0]], &dev);
+    let mut model: Model<Train> = Model::new(&dev);
     let mut optim = SgdConfig::new().init();
     for _ in 0..3000 {
         let loss = MseLoss::new().forward(model.forward(x.clone()), y.clone(), Reduction::Mean);
