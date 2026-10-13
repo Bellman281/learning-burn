@@ -1,0 +1,12 @@
+[package]
+name = "c20e4"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+burn = { version = "0.21.0", features = ["ndarray", "flex"] }
+burn-store = "0.21.0"
+
+[features]
+# cargo run --release --features gpu   (needs a GPU: Metal, Vulkan or DX12)
+gpu = ["burn/wgpu"]
