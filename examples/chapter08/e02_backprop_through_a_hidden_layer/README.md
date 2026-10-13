@@ -1,4 +1,4 @@
-# Burn Autodiff: Multi-Layer Backpropagation (Example 10.2)
+# Burn Autodiff: Multi-Layer Backpropagation (Example 8.2)
 
 This repository contains a minimal example demonstrating backpropagation through a hidden layer using the **Burn** deep learning framework in Rust, alongside its **PyTorch** counterpart. 
 

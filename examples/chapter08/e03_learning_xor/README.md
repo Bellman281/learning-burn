@@ -1,4 +1,4 @@
-# Burn Neural Networks: Solving Non-Linear XOR (Example 10.3)
+# Burn Neural Networks: Solving Non-Linear XOR (Example 8.3)
 
 This repository contains a classic demonstration of backpropagation solving the **XOR problem** using the **Burn** deep learning framework in Rust, alongside its **PyTorch** counterpart.
 
