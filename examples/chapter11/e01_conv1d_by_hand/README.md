@@ -3,8 +3,9 @@
 A convolution is a small kernel sliding along a signal: multiply the overlap, add it up, move one step. The kernel `[1, 0, -1]` is a slope detector. We compute it with a plain loop, then with `burn::tensor::module::conv1d`, and get the same four numbers.
 
 ```rust
-let x = Tensor::<Backend, 1>::from_floats(signal, &device).reshape([1, 1, 6]); // [batch, channels, length]
-let w = Tensor::<Backend, 1>::from_floats(kernel, &device).reshape([1, 1, 3]); // [out, in, kernel]
+let device = Device::flex();
+let x = Tensor::<1>::from_floats(signal, &device).reshape([1, 1, 6]); // [batch, channels, length]
+let w = Tensor::<1>::from_floats(kernel, &device).reshape([1, 1, 3]); // [out, in, kernel]
 let y = conv1d(x, w, None, ConvOptions::new([1], [0], [1], 1));
 ```
 

@@ -1,8 +1,6 @@
-use burn::backend::NdArray;
 use burn::tensor::module::{avg_pool2d, max_pool2d_with_indices};
-use burn::tensor::{Tensor, TensorData};
-
-type Backend = NdArray;
+use burn::tensor::ops::{AvgPoolOptions, MaxPoolOptions};
+use burn::tensor::{Device, Tensor, TensorData};
 
 // A tiny LCG so Rust and Python draw exactly the same numbers.
 struct Lcg(u32);
@@ -94,17 +92,18 @@ fn build() -> (
     bool,
     Vec<(String, usize, usize)>,
 ) {
-    let device = Default::default();
+    let device = Device::flex();
     let x = shuffled(36, &mut Lcg(10));
-    let xt = Tensor::<Backend, 4>::from_data(TensorData::new(x.clone(), [1, 1, 6, 6]), &device);
+    let xt = Tensor::<4>::from_data(TensorData::new(x.clone(), [1, 1, 6, 6]), &device);
 
     let mut runs = Vec::new();
     for (name, k, s) in [("max 2x2/2", 2, 2), ("max 3x3/2", 3, 2)] {
         let (vals, idx) = max_pool(&x, 6, 6, k, s);
         // Burn's functional op returns the same two things: values and flat indices.
-        let (bv, bi) = max_pool2d_with_indices(xt.clone(), [k, k], [s, s], [0, 0], [1, 1], false);
-        let bv: Vec<f32> = bv.into_data().to_vec().unwrap();
-        let bi: Vec<i64> = bi.into_data().convert::<i64>().to_vec().unwrap();
+        let (bv, bi) =
+            max_pool2d_with_indices(xt.clone(), MaxPoolOptions::new([k, k]).with_stride([s, s]));
+        let bv: Vec<f32> = bv.into_data().try_to_vec().unwrap();
+        let bi: Vec<i64> = bi.into_data().convert::<i64>().try_to_vec().unwrap();
         let vals_ok = bv == vals;
         let idx_ok = bi.iter().map(|&i| i as usize).eq(idx.iter().copied());
         runs.push(MaxRun {
@@ -116,9 +115,9 @@ fn build() -> (
         });
     }
     let avg = avg_pool(&x, 6, 6, 2, 2);
-    let burn_avg: Vec<f32> = avg_pool2d(xt, [2, 2], [2, 2], [0, 0], true, false)
+    let burn_avg: Vec<f32> = avg_pool2d(xt, AvgPoolOptions::new([2, 2]))
         .into_data()
-        .to_vec()
+        .try_to_vec()
         .unwrap();
     let avg_ok = burn_avg == avg;
     let rf = receptive_fields(&[("conv 3x3", 3, 1), ("pool 2x2", 2, 2), ("conv 3x3", 3, 1)]);

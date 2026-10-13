@@ -1,10 +1,6 @@
-use burn::backend::{Autodiff, NdArray};
 use burn::tensor::module::conv2d;
 use burn::tensor::ops::ConvOptions;
-use burn::tensor::{Tensor, TensorData};
-
-// A gradient check is run in f64 (Chapter 9), and so is Burn's check here.
-type B = Autodiff<NdArray<f64>>;
+use burn::tensor::{DType, Device, Tensor, TensorData};
 
 // A tiny LCG so Rust and Python draw exactly the same numbers.
 struct Lcg(u32);
@@ -139,20 +135,23 @@ fn numerical(x: &[f64], w: &[f64], b: &[f64], r: &[f64]) -> [Vec<f64>; 3] {
 
 // The same loss in Burn, differentiated by autodiff (in f64).
 fn by_burn(x: &[f64], w: &[f64], b: &[f64], r: &[f64]) -> [Vec<f64>; 3] {
-    let device = Default::default();
+    let device = Device::flex().autodiff();
+    // A gradient check runs in f64 (Chapter 9). The device's default float is f32,
+    // so every tensor of Burn's check asks for F64 explicitly.
     let t = |v: &[f64], s: [usize; 4]| {
-        Tensor::<B, 4>::from_data(TensorData::new(v.to_vec(), s), &device)
+        Tensor::<4>::from_data(TensorData::new(v.to_vec(), s), (&device, DType::F64))
     };
     let xt = t(x, [N, CI, H, H]).require_grad();
     let wt = t(w, [CO, CI, K, K]).require_grad();
-    let bt = Tensor::<B, 1>::from_data(TensorData::new(b.to_vec(), [CO]), &device).require_grad();
+    let bt = Tensor::<1>::from_data(TensorData::new(b.to_vec(), [CO]), (&device, DType::F64))
+        .require_grad();
     let options = ConvOptions::new([1, 1], [P, P], [1, 1], 1);
     let y = conv2d(xt.clone(), wt.clone(), Some(bt.clone()), options);
     let grads = (t(r, [N, CO, H, H]) * y.tanh()).sum().backward();
     [
-        bt.grad(&grads).unwrap().into_data().to_vec().unwrap(),
-        wt.grad(&grads).unwrap().into_data().to_vec().unwrap(),
-        xt.grad(&grads).unwrap().into_data().to_vec().unwrap(),
+        bt.grad(&grads).unwrap().into_data().try_to_vec().unwrap(),
+        wt.grad(&grads).unwrap().into_data().try_to_vec().unwrap(),
+        xt.grad(&grads).unwrap().into_data().try_to_vec().unwrap(),
     ]
 }
 

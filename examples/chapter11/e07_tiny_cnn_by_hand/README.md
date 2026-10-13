@@ -20,4 +20,4 @@ pytest examples/chapter11/e07_tiny_cnn_by_hand/python/main.py      # the Python 
 
 ## Parity
 
-Step 1's loss and gradients match Burn's autodiff (`max|hand - burn|` ≈ 3e-8 over all 620 gradients) and torch `.backward()`. The mean loss per epoch matches the PyTorch run to 1e-4 (it prints identically to 6 decimals), and both reach 79/80 on the test set.
+Step 1's loss and gradients match Burn's autodiff (`max|hand - burn|` ≈ 1.5e-8 over all 620 gradients) and torch `.backward()`. The mean loss per epoch matches the PyTorch run to 1e-4 (it prints identically to 6 decimals), and both reach 79/80 on the test set.
