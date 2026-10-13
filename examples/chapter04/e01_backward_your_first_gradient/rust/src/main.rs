@@ -1,14 +1,12 @@
-use burn::backend::{Autodiff, NdArray};
-use burn::tensor::Tensor;
-
-// Autodiff is a backend *decorator*: wrap any backend to get gradients.
-type B = Autodiff<NdArray>;
+use burn::tensor::{Device, Tensor};
 
 fn main() {
-    let dev = Default::default();
+    // Autodiff is a property of the *device*: ask for it, and tensors made there
+    // can record the operations they take part in.
+    let dev = Device::flex().autodiff();
 
     // f(x) = sum(x^2). By hand, df/dx = 2x.
-    let x = Tensor::<B, 1>::from_floats([1.0, 2.0, 3.0], &dev).require_grad();
+    let x = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &dev).require_grad();
     let f = (x.clone() * x.clone()).sum(); // 1 + 4 + 9 = 14
 
     // One call computes the gradient for us.
