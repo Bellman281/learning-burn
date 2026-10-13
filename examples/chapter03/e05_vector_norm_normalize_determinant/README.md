@@ -8,4 +8,4 @@ This example demonstrates three core linear algebra operations in PyTorch and Bu
 
 ### Key Differences in Burn (Rust)
 - **Batched Determinants:** Burn's `linalg::det` operates on a *batch* of square matrices (minimum rank 3), meaning a $2 \times 2$ matrix must be shaped as $[1, 2, 2]$.
-- **Turbofish Generics:** The `linalg::det` function requires explicit rank generics (`det::<B, D, D1, D2>`) to handle internal dimension reductions safely at compile time.
+- **Turbofish Generics:** The `linalg::det` function requires explicit rank generics (`det::<D, D1, D2>`, e.g. `det::<3, 2, 1>`) whose values are fully determined by `D` (`D1 = D - 1`, `D2 = D - 2`). Rust cannot compute them in the signature, so you must state them, and Burn checks them at run time: a wrong combination, or an input of rank below 3, panics.
