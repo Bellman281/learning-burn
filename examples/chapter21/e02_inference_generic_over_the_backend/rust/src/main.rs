@@ -4,7 +4,7 @@ use burn::nn::{Linear, LinearConfig};
 use burn::tensor::Tensor;
 use burn::tensor::backend::Backend;
 
-// Chapter 14 — Backend-agnostic inference.
+// Chapter 21 — Backend-agnostic inference.
 //
 // Burn's core idea: your model and inference code are generic over the Backend
 // trait `B`. The exact same code compiles for CPU (NdArray), GPU (Wgpu/CUDA), or

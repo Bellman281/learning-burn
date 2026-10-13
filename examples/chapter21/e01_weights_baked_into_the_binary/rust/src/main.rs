@@ -5,7 +5,7 @@ use burn::record::{BinBytesRecorder, FullPrecisionSettings, Recorder};
 use burn::tensor::Tensor;
 use burn::tensor::backend::Backend;
 
-// Chapter 14 — Bare-metal inference: weights embedded in the binary.
+// Chapter 21 — Bare-metal inference: weights embedded in the binary.
 //
 // A microcontroller has no filesystem. So instead of load_file(), you serialize
 // the weights to a byte buffer, bake that buffer into the firmware with

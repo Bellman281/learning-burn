@@ -1,4 +1,4 @@
-# Backend-Agnostic Inference (Example 14.2)
+# Backend-Agnostic Inference (Example 21.2)
 
 An architectural demonstration showing how **Burn**'s type system decouples model logic from execution hardware, allowing the exact same code to run seamlessly on CPU, GPU, or embedded microcontrollers.
 

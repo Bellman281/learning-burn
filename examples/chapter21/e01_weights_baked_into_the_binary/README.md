@@ -1,4 +1,4 @@
-# Bare-Metal Embedded Inference (Example 14.1)
+# Bare-Metal Embedded Inference (Example 21.1)
 
 An implementation showcasing how to serialize model weights into memory and bake them directly into a compiled binary for bare-metal systems and microcontrollers without a filesystem.
 

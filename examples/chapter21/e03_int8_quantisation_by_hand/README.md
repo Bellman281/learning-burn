@@ -1,4 +1,4 @@
-# Int8 Quantization (Example 14.3)
+# Int8 Quantization (Example 21.3)
 
 A fundamental demonstration of symmetric int8 quantization, showcasing how to shrink neural network weights by approximately 4x with negligible loss in model accuracy.
 

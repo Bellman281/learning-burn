@@ -1,9 +1,9 @@
-// Chapter 14 — Quantization: shrinking weights from f32 to int8 (~4x smaller).
+// Chapter 21 — Quantization: shrinking weights from f32 to int8 (~4x smaller).
 //
 // Symmetric int8 quantization, the standard scheme:
 //      scale = max(|w|) / 127
-//      q     = round(w / scale)-> stored as i8, one byte each
-//      w'    = q * scale-> dequantize at inference time
+//      q     = round(w / scale)  -> stored as i8, one byte each
+//      w'    = q * scale         -> dequantize at inference time
 // You keep a single f32 `scale` per tensor and store every weight in one byte.
 // Reconstruction is approximate, but usually accurate enough for inference — and
 // on a constrained device the 4x memory saving is what makes the model fit.

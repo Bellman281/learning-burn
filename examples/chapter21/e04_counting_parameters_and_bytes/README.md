@@ -1,4 +1,4 @@
-# Model Resource Auditing (Example 14.4)
+# Model Resource Auditing (Example 21.4)
 
 A structural analysis tool to calculate a neural network's parameter count and memory footprint across different numeric precisions prior to physical deployment on embedded systems.
 
