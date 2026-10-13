@@ -7,7 +7,7 @@ use burn::record::CompactRecorder;
 use burn::tensor::Tensor;
 use burn::tensor::backend::Backend;
 
-// Chapter 13 — Deploying a model: train, save, reload, infer.
+// Chapter 19 — Saving and loading: train, save, reload, infer.
 //
 // Training and inference are usually separate programs. You train once, write
 // the weights to disk, then a lightweight inference process loads them and
@@ -35,7 +35,7 @@ impl<B: Backend> Model<B> {
 }
 fn main() {
     let dev = Default::default();
-    let path = std::env::temp_dir().join("burn_ch13_model");
+    let path = std::env::temp_dir().join("burn_ch19_model");
     let recorder = CompactRecorder::new();
 
     // ---- 1. TRAIN (fit y = 2x + 1) ----

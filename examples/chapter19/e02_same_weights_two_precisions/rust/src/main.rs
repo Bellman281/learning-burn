@@ -4,7 +4,7 @@ use burn::nn::{Linear, LinearConfig};
 use burn::record::{CompactRecorder, FullPrecisionSettings, NamedMpkFileRecorder};
 use burn::tensor::Tensor;
 use burn::tensor::backend::Backend;
-// Chapter 13 — Recorder formats: precision vs file size.
+// Chapter 19 — Recorder formats: precision vs file size.
 //
 // A "recorder" decides how weights are serialized. Two msgpack recorders differ
 // only in numeric precision:
@@ -46,7 +46,7 @@ fn main() {
 
     // --- Full precision (f32): exact round-trip ---
     let full = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
-    let full_path = std::env::temp_dir().join("ch13_full");
+    let full_path = std::env::temp_dir().join("ch19_full");
     model
         .clone()
         .save_file(full_path.clone(), &full)
@@ -58,7 +58,7 @@ fn main() {
 
     // --- Compact (f16): smaller file, slight precision loss ---
     let compact = CompactRecorder::new();
-    let compact_path = std::env::temp_dir().join("ch13_compact");
+    let compact_path = std::env::temp_dir().join("ch19_compact");
     model
         .save_file(compact_path.clone(), &compact)
         .expect("save compact");

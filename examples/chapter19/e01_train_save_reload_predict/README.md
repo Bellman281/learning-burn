@@ -1,4 +1,4 @@
-# Training, Saving, and Inference Round Trip (Example 13.1)
+# Training, Saving, and Inference Round Trip (Example 19.1)
 
 A complete end-to-end pipeline demonstrating how to train a model, serialize its weights to disk, and reload them for safe, lightweight inference in **Burn** and **PyTorch**.
 
