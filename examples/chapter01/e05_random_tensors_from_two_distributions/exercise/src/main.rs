@@ -1,11 +1,7 @@
-use burn::backend::NdArray;
-use burn::tensor::backend::Backend as _;
-use burn::tensor::{Distribution, Tensor};
+use burn::tensor::{Device, Distribution, Tensor};
 use plotters::coord::Shift;
 use plotters::prelude::*;
 use plotters::style::register_font;
-
-type Backend = NdArray;
 
 const N: usize = 20_000;
 const BINS: usize = 40;
@@ -35,18 +31,18 @@ fn load_font() {
 fn main() {
     load_font();
 
-    let device = Default::default();
+    let device = Device::flex();
 
     // fix the random state: same draws, same picture, every run
-    Backend::seed(&device, 42);
+    device.seed(42);
 
     // same two distributions as e05, but 20k draws each instead of 2x3
-    let u = Tensor::<Backend, 1>::random([N], Distribution::Default, &device);
-    let n = Tensor::<Backend, 1>::random([N], Distribution::Normal(0.0, 1.0), &device);
+    let u = Tensor::<1>::random([N], Distribution::Default, &device);
+    let n = Tensor::<1>::random([N], Distribution::Normal(0.0, 1.0), &device);
 
     // pull the numbers back to the host
-    let u: Vec<f32> = u.into_data().to_vec().unwrap();
-    let n: Vec<f32> = n.into_data().to_vec().unwrap();
+    let u: Vec<f32> = u.into_data().try_to_vec().unwrap();
+    let n: Vec<f32> = n.into_data().try_to_vec().unwrap();
 
     // next to the crate, not wherever cargo happened to be invoked from
     let path = format!("{}/distributions.png", env!("CARGO_MANIFEST_DIR"));

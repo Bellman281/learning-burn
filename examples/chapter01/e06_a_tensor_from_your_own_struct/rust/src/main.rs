@@ -1,7 +1,4 @@
-use burn::backend::NdArray;
-use burn::tensor::{Tensor, TensorData};
-
-type Backend = NdArray;
+use burn::tensor::{Device, Tensor, TensorData};
 
 struct BodyMetrics {
     age: i8,
@@ -10,7 +7,7 @@ struct BodyMetrics {
 }
 
 fn main() {
-    let device = Default::default();
+    let device = Device::flex();
 
     let bmi = BodyMetrics {
         age: 25,
@@ -19,7 +16,7 @@ fn main() {
     };
 
     let data = TensorData::from([bmi.age as f32, bmi.height as f32, bmi.weight]);
-    let t = Tensor::<Backend, 1>::from_data(data, &device);
+    let t = Tensor::<1>::from_data(data, &device);
 
     println!("t = {}", t);
 }

@@ -1,11 +1,8 @@
-use burn::backend::NdArray;
-use burn::tensor::Tensor;
+use burn::tensor::{Device, Tensor};
 use plotters::coord::Shift;
 use plotters::prelude::*;
 use plotters::style::register_font;
 use plotters::style::text_anchor::{HPos, Pos, VPos};
-
-type Backend = NdArray;
 
 /// Everything below is in "design pixels", multiplied by this on the way out.
 /// Bump it for a sharper PNG; the layout stays identical.
@@ -38,17 +35,17 @@ fn load_font() {
 fn main() {
     load_font();
 
-    let device = Default::default();
+    let device = Device::flex();
 
     // the same four numbers as the e08 example
-    let input = Tensor::<Backend, 1>::from_floats([1.0, 2.0, 3.0, 4.0], &device);
+    let input = Tensor::<1>::from_floats([1.0, 2.0, 3.0, 4.0], &device);
 
     let min = input.clone().min();
     let max = input.clone().max();
     let scaled = (input.clone() - min.clone()).div(max - min);
 
-    let before: Vec<f32> = input.into_data().to_vec().unwrap();
-    let after: Vec<f32> = scaled.into_data().to_vec().unwrap();
+    let before: Vec<f32> = input.into_data().try_to_vec().unwrap();
+    let after: Vec<f32> = scaled.into_data().try_to_vec().unwrap();
 
     // next to the crate, not wherever cargo happened to be invoked from
     let path = format!("{}/normalisation.png", env!("CARGO_MANIFEST_DIR"));
