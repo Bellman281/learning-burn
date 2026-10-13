@@ -1,7 +1,7 @@
 use burn::backend::NdArray;
 use burn::tensor::activation::softmax;
 use burn::tensor::Tensor;
-// Chapter 12 — Attention from scratch.
+// Chapter 10 — Attention from scratch.
 //
 // The one equation behind every transformer:
 //

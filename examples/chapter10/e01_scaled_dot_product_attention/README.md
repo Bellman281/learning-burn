@@ -1,4 +1,4 @@
-# Scaled Dot-Product Attention from Scratch (Example 12.1)
+# Scaled Dot-Product Attention from Scratch (Example 10.1)
 
 A minimal, transparent implementation of the core mathematical formula driving every modern Transformer architecture, using both **Burn** and **PyTorch**.
 

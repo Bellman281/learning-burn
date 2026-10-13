@@ -1,4 +1,4 @@
-# A Transformer Block from Scratch (Example 12.4)
+# A Transformer Block from Scratch (Example 10.4)
 
 An assembly of a complete Transformer Encoder block from scratch using **Burn** and **PyTorch**, integrating self-attention, feed-forward networks, residual connections, and custom LayerNorm.
 

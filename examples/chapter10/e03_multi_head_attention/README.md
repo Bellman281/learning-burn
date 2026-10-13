@@ -1,4 +1,4 @@
-# Multi-Head Attention (Example 12.3)
+# Multi-Head Attention (Example 10.3)
 
 A clean, step-by-step implementation of Multi-Head Attention (MHA) demonstrating how a model processes multiple types of relationships in parallel using **Burn** and **PyTorch**.
 

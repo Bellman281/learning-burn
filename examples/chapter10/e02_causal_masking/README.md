@@ -1,4 +1,4 @@
-# Causal Masking: The Core of Autoregressive Transformers (Example 12.2)
+# Causal Masking: The Core of Autoregressive Transformers (Example 10.2)
 
 A clean, illustrative example demonstrating how to restrict attention to past tokens, turning a bidirectional encoder into a generative autoregressive decoder (like GPT) using **Burn** and **PyTorch**.
 
