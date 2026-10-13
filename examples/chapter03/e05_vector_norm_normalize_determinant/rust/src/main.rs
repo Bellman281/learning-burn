@@ -14,8 +14,8 @@ fn main() {
     // `det` operates on a BATCH of square matrices, so the input rank must be
     // at least 3: [1, 2, 2] is a batch of one 2x2 matrix. A plain [2, 2] panics.
     // The two extra generics are fully determined by the input rank D:
-    //D1 = D - 1(rank of the pivot vector used internally)
-    //D2 = D - 2(rank of the result: the two matrix axes are consumed)
+    //   D1 = D - 1   (rank of the pivot vector used internally)
+    //   D2 = D - 2   (rank of the result: the two matrix axes are consumed)
     let m = Tensor::<B, 3>::from_floats([[[4.0, 3.0], [6.0, 3.0]]], &dev);
     let d = linalg::det::<B, 3, 2, 1>(m); // -6.0
 
