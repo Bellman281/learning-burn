@@ -1,12 +1,9 @@
 use std::time::{Duration, Instant};
 
-use burn::backend::NdArray;
 use burn::data::dataloader::DataLoaderBuilder;
 use burn::data::dataloader::batcher::Batcher;
-use burn::data::dataset::Dataset;
-use burn::tensor::backend::Backend;
-
-type MyBackend = NdArray;
+use burn::data::dataset::{Dataset, DatasetError};
+use burn::tensor::Device;
 
 // A dataset whose get() is slow on purpose: 4 ms per item stands in for
 // opening a file and decoding a JPEG. Real datasets are slow in exactly this place.
@@ -15,12 +12,10 @@ struct SlowDataset {
 }
 
 impl Dataset<usize> for SlowDataset {
-    fn get(&self, index: usize) -> Option<usize> {
-        if index >= self.n {
-            return None;
-        }
+    fn get(&self, index: usize) -> Result<usize, DatasetError> {
+        assert!(index < self.n, "index {index} out of range"); // the trait's contract
         std::thread::sleep(Duration::from_millis(4));
-        Some(index)
+        Ok(index)
     }
 
     fn len(&self) -> usize {
@@ -31,22 +26,24 @@ impl Dataset<usize> for SlowDataset {
 #[derive(Clone, Default)]
 struct Ids;
 
-impl<B: Backend> Batcher<B, usize, Vec<usize>> for Ids {
-    fn batch(&self, items: Vec<usize>, _device: &B::Device) -> Vec<usize> {
+impl Batcher<usize, Vec<usize>> for Ids {
+    fn batch(&self, items: Vec<usize>, _device: &Device) -> Vec<usize> {
         items
     }
 }
 
 /// One full pass over 64 items in batches of 8. Returns (items seen, sorted; elapsed).
 fn one_epoch(workers: usize) -> (Vec<usize>, Duration) {
-    let mut builder = DataLoaderBuilder::<MyBackend, usize, Vec<usize>>::new(Ids).batch_size(8);
+    let mut builder = DataLoaderBuilder::<usize, Vec<usize>>::new(Ids)
+        .batch_size(8)
+        .set_device(Device::flex());
     if workers > 0 {
         builder = builder.num_workers(workers); // each worker thread owns a slice of the dataset
     }
     let loader = builder.build(SlowDataset { n: 64 });
 
     let start = Instant::now();
-    let mut seen: Vec<usize> = loader.iter().flatten().collect();
+    let mut seen: Vec<usize> = loader.iter().flat_map(Result::unwrap).collect();
     let elapsed = start.elapsed();
     seen.sort();
     (seen, elapsed)

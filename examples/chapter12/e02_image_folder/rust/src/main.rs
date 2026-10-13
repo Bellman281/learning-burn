@@ -1,12 +1,8 @@
 use std::path::{Path, PathBuf};
 
-use burn::backend::NdArray;
 use burn::data::dataloader::batcher::Batcher;
-use burn::data::dataset::Dataset;
-use burn::tensor::backend::Backend;
-use burn::tensor::{Int, Tensor, TensorData};
-
-type MyBackend = NdArray;
+use burn::data::dataset::{Dataset, DatasetError};
+use burn::tensor::{Device, Int, Tensor, TensorData};
 
 const ROOT: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -50,10 +46,11 @@ struct ImageItem {
 }
 
 impl Dataset<ImageItem> for ImageFolder {
-    fn get(&self, index: usize) -> Option<ImageItem> {
-        let (path, label) = self.items.get(index)?;
-        let img = image::open(path).ok()?.to_luma8(); // decode happens HERE
-        Some(ImageItem {
+    fn get(&self, index: usize) -> Result<ImageItem, DatasetError> {
+        let (path, label) = &self.items[index]; // out of range panics, like a slice
+        let img = image::open(path).map_err(DatasetError::new)?; // a bad file is an Err
+        let img = img.to_luma8(); // decode happens HERE
+        Ok(ImageItem {
             pixels: img.into_raw(),
             label: *label,
         })
@@ -68,13 +65,13 @@ impl Dataset<ImageItem> for ImageFolder {
 struct ImageBatcher;
 
 #[derive(Clone, Debug)]
-struct ImageBatch<B: Backend> {
-    images: Tensor<B, 4>,       // [batch, 1, 12, 12], values in [0, 1]
-    targets: Tensor<B, 1, Int>, // [batch]
+struct ImageBatch {
+    images: Tensor<4>,       // [batch, 1, 12, 12], values in [0, 1]
+    targets: Tensor<1, Int>, // [batch]
 }
 
-impl<B: Backend> Batcher<B, ImageItem, ImageBatch<B>> for ImageBatcher {
-    fn batch(&self, items: Vec<ImageItem>, device: &B::Device) -> ImageBatch<B> {
+impl Batcher<ImageItem, ImageBatch> for ImageBatcher {
+    fn batch(&self, items: Vec<ImageItem>, device: &Device) -> ImageBatch {
         let n = items.len();
         let x: Vec<f32> = items
             .iter()
@@ -94,11 +91,11 @@ fn build() -> (Vec<String>, usize, usize, u32, [usize; 4], Vec<i64>, f32) {
     let item = data.get(7).unwrap();
     let sum: u32 = item.pixels.iter().map(|&p| p as u32).sum();
 
-    let device = Default::default();
-    let first8: Vec<ImageItem> = (0..8).filter_map(|i| data.get(i)).collect();
-    let batch: ImageBatch<MyBackend> = ImageBatcher.batch(first8, &device);
+    let device = Device::flex();
+    let first8: Vec<ImageItem> = data.get_many((0..8).collect()).expect("decode 8 images");
+    let batch: ImageBatch = ImageBatcher.batch(first8, &device);
     let mean = batch.images.clone().mean().into_scalar();
-    let labels: Vec<i64> = batch.targets.into_data().to_vec().unwrap();
+    let labels: Vec<i64> = batch.targets.into_data().convert::<i64>().try_to_vec().unwrap();
     (
         data.classes.clone(),
         data.len(),
