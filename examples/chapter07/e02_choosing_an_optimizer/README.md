@@ -11,4 +11,5 @@ This example compares the strengths of modern optimizers and demonstrates how ea
 - In Burn, changing optimizers requires swapping only the configuration line. The downstream four-beat training loop remains completely identical.
 - **SGD with Momentum:** Configured via `SgdConfig::new().with_momentum(Some(MomentumConfig::new()))` (defaulting to a momentum factor of $0.9$).
 - **Adam / AdamW:** Instantiated via `AdamConfig::new().init()` or `AdamWConfig::new().with_weight_decay(0.01).init()`.
-- **Other Optimizers:** Burn also provides built-in support for algorithms like RMSprop, AdaGrad, and modern alternatives like Adan and Muon.
+- **No model type needed:** In Burn 0.22 every `init()` returns the same `ModuleOptimizer`, which is not tied to a model type; the model is handed over at each `step(lr, model, grads)`.
+- **Other Optimizers:** Burn also provides built-in support for algorithms like RMSprop, AdaGrad, and modern alternatives like Adan, Muon, Lion, Lamb and Adafactor.
