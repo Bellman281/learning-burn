@@ -1,5 +1,4 @@
-use burn::backend::{Autodiff, NdArray};
-use burn::tensor::Tensor;
+use burn::tensor::{Device, Tensor};
 // Chapter 9 — Gradient checking: how do you KNOW backprop is right?
 //
 // The definition of a derivative is a limit of finite differences:
@@ -11,7 +10,6 @@ use burn::tensor::Tensor;
 // Toy loss so the arithmetic is easy to follow: f(w) = (3w - 2)^2.
 // Analytic derivative: f'(w) = 2*(3w - 2)*3. At w = 0.5 that is -3.0.
 //
-type B = Autodiff<NdArray>;
 
 // Plain-Rust forward pass, used for the finite-difference estimate.
 fn loss_at(w: f64) -> f64 {
@@ -20,11 +18,11 @@ fn loss_at(w: f64) -> f64 {
 }
 
 fn main() {
-    let dev = Default::default();
+    let dev = Device::flex().autodiff();
     let w_value = 0.5;
 
     // --- autodiff gradient ---
-    let w = Tensor::<B, 1>::from_floats([w_value as f32], &dev).require_grad();
+    let w = Tensor::<1>::from_floats([w_value as f32], &dev).require_grad();
     let z = w.clone().mul_scalar(3.0).sub_scalar(2.0);
     let loss = (z.clone() * z).sum();
     let grads = loss.backward();

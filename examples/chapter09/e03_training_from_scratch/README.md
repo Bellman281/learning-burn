@@ -17,6 +17,6 @@ $$\theta \leftarrow \theta - \eta \cdot \nabla_{\theta} L$$
 ## Key Concepts Covered
 
 - **Zero-Optimizer Training:** Implementing the classic Stochastic Gradient Descent (SGD) update formula manually to realize that optimizers are just systematic loops over parameters.
-- **Burn's Ownership & Graph Detachment:** Understanding why Burn does not use PyTorch's in-place mutation (like `with torch.no_grad(): W1 -= lr * grad`). Instead, we drop down to the plain backend tensor using `.inner()`, perform the update arithmetic, and lift it back into a fresh trainable leaf via `Tensor::from_inner(...).require_grad()`.
+- **Burn's Ownership & Graph Detachment:** Understanding why Burn does not use PyTorch's in-place mutation (like `with torch.no_grad(): W1 -= lr * grad`). Instead, we take the tensor off autodiff with `.inner()` (an alias of `.without_autodiff()`), perform the update arithmetic, and put it back on autodiff as a fresh trainable leaf via `Tensor::from_inner(...).require_grad()` (`from_inner` is an alias of `.autodiff()`).
 - **The Non-Existence of `zero_grad()`:** Discovering how Burn's functional ownership design naturally eliminates the need to manually zero out gradients; rebuilding weight leaves on each step means they start with clean slate histories.
 - **Symmetry Breaking:** Why initializing weights with uniform random values is mathematically required to allow different hidden units to learn distinct features.

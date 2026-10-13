@@ -43,4 +43,4 @@ Nothing here trains yet — no gradients, no updates. That comes in Example 9.2,
 - **Scoring a Prediction:** Building mean squared error from scratch — subtract, square, average — instead of reaching for a loss module.
 - **Broadcasting Traps:** Learning why a mis-shaped target produces a loss that runs cleanly and is still wrong.
 - **Floating-Point Realities:** Meeting $f32$ binary representation limitations (like $0.9$ representing as $0.90000004$) to understand why exact float equality checks ($==$) fail in practice.
-- **No-Abstraction Burn Tensors:** Performing deterministic forward passes on `NdArray` backend without the standard boilerplate.
+- **No-Abstraction Burn Tensors:** Performing deterministic forward passes on the plain `Device::flex()` CPU device without the standard boilerplate.
