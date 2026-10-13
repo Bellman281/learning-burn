@@ -2,7 +2,7 @@ use burn::backend::NdArray;
 use burn::tensor::Tensor;
 use burn::tensor::activation::softmax;
 
-// Chapter 12 — Causal (masked) self-attention.
+// Chapter 10 — Causal (masked) self-attention.
 //
 // In a language model, token i must not attend to tokens that come AFTER it.
 // We enforce that with an additive mask: add a huge negative number to every

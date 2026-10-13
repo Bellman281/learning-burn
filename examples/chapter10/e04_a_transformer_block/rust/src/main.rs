@@ -2,7 +2,7 @@ use burn::backend::NdArray;
 use burn::nn::{Linear, LinearConfig};
 use burn::tensor::activation::{relu, softmax};
 use burn::tensor::Tensor;
-// Chapter 12 — A transformer encoder block, assembled from scratch.
+// Chapter 10 — A transformer encoder block, assembled from scratch.
 //
 // One block is just four ideas stacked with residual connections:
 //
@@ -36,8 +36,8 @@ fn main() {
         ],
         &dev,
     );
-    // Self-attenti
-    // on projections.
+    let input_dims = x.dims();
+    // Self-attention projections.
     let wq: Linear<B> = LinearConfig::new(d_model, d_model).init(&dev);
     let wk: Linear<B> = LinearConfig::new(d_model, d_model).init(&dev);
     let wv: Linear<B> = LinearConfig::new(d_model, d_model).init(&dev);
@@ -61,7 +61,7 @@ fn main() {
     // ---- sub-layer 2: feed-forward + residual + norm ----
     let ff = ff2.forward(relu(ff1.forward(x.clone()))); // [seq, d_model]
     let out = layer_norm(x + ff);
-    println!("input shape = {:?}", out.dims()); // [3, 4]
+    println!("input shape = {:?}", input_dims); // [3, 4]
     println!("output shape = {:?}", out.dims()); // [3, 4]   (a block preserves shape)
     println!("output =\n{}", out.to_data());
     // After the final LayerNorm, each row is ~zero-mean:

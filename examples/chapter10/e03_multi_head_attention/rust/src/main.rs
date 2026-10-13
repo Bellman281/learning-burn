@@ -3,7 +3,7 @@ use burn::nn::{Linear, LinearConfig};
 use burn::tensor::Tensor;
 use burn::tensor::activation::softmax;
 
-// Chapter 12 — Multi-head attention.
+// Chapter 10 — Multi-head attention.
 //
 // One attention is myopic. Multi-head runs several attentions in parallel on
 // different learned projections of the input ("heads"), then concatenates them.
@@ -62,9 +62,9 @@ fn main() {
 
     // 5. output projection.
     let out = wo.forward(concat);
-    println!("inputshape  = {:?}", x.dims()); // [3, 4]
-    println!("scoresshape = {:?}", weights.dims()); // [2, 3, 3] (heads, seq, seq)
-    println!("outputshape = {:?}", out.dims()); // [3, 4]        (same as input)
+    println!("input shape  = {:?}", x.dims()); // [3, 4]
+    println!("scores shape = {:?}", weights.dims()); // [2, 3, 3] (heads, seq, seq)
+    println!("output shape = {:?}", out.dims()); // [3, 4]        (same as input)
 
     // Sanity: each query's attention weights sum to 1 (softmax), per head.
     println!(
