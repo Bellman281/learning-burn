@@ -12,6 +12,7 @@ fn main() {
 
     println!("tensor = {}", tensor);
 
-    // WRONG: this would ask for a 5-dimensional tensor and will not compile as intended
+    // WRONG: this asks for a 5-dimensional tensor. It compiles, then panics at run time:
+    // five numbers in a row have the rank-1 shape [5], not five axes.
     // let tensor = Tensor::<Backend, 5>::from_floats(floats, &device);
 }
