@@ -1,4 +1,4 @@
-# Burn Autodiff: The Chain Rule (Example 10.1)
+# Burn Autodiff: The Chain Rule (Example 8.1)
 
 This repository contains a minimal example demonstrating backpropagation and the chain rule using the **Burn** deep learning framework in Rust, mapped directly against **PyTorch**.
 
