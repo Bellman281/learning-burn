@@ -1,12 +1,9 @@
-use burn::backend::NdArray;
-use burn::tensor::{Tensor, activation};
-
-type B = NdArray;
+use burn::tensor::{Device, Tensor, activation};
 
 fn main() {
-    let dev = Default::default();
+    let dev = Device::flex();
 
-    let x = Tensor::<B, 1>::from_floats([-1.0, 0.0, 1.0], &dev);
+    let x = Tensor::<1>::from_floats([-1.0, 0.0, 1.0], &dev);
 
     // Saturating / output units: sigmoid squashes to (0, 1), tanh to (-1, 1).
     let sigmoid = activation::sigmoid(x.clone());
