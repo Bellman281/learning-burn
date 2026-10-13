@@ -1,14 +1,11 @@
-use burn::backend::NdArray;
-use burn::tensor::Tensor;
-
-type Backend = NdArray;
+use burn::tensor::{Device, Tensor};
 
 fn main() {
-    let dev = Default::default();
+    let dev = Device::flex();
 
     // Add a per-column bias to every row of a [2, 3] matrix.
-    let m = Tensor::<Backend, 2>::from_floats([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &dev);
-    let bias = Tensor::<Backend, 1>::from_floats([100.0, 200.0, 300.0], &dev);
+    let m = Tensor::<2>::from_floats([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &dev);
+    let bias = Tensor::<1>::from_floats([100.0, 200.0, 300.0], &dev);
 
     // `unsqueeze` raises the length-3 vector to [1, 3] so its rank matches the
     // matrix; it then broadcasts over the 2 rows.

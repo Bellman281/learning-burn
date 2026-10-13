@@ -1,13 +1,10 @@
-use burn::backend::NdArray;
-use burn::tensor::Tensor;
-
-type B = NdArray;
+use burn::tensor::{Device, Tensor};
 
 fn main() {
-    let dev = Default::default();
+    let dev = Device::flex();
 
-    let a = Tensor::<B, 1>::from_floats([1.0, 2.0, 3.0], &dev);
-    let b = Tensor::<B, 1>::from_floats([10.0, 20.0, 30.0], &dev);
+    let a = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &dev);
+    let b = Tensor::<1>::from_floats([10.0, 20.0, 30.0], &dev);
 
     // Operators and their named-method equivalents; reused tensors are cloned.
     let s = a.clone() + b.clone(); // or a.clone().add(b.clone())
