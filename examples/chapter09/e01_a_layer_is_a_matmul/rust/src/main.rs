@@ -1,7 +1,7 @@
 use burn::backend::NdArray;
 use burn::tensor::Tensor;
 use burn::tensor::activation::relu;
-// Chapter 11 — A neural network from scratch.
+// Chapter 9 — A neural network from scratch.
 //
 // No nn::Linear, no Module derive — just weight matrices and matmuls, so you can
 // see EXACTLY what a "layer" is: an affine map (x @ W) followed by a nonlinearity.

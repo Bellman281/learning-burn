@@ -1,7 +1,7 @@
 use burn::backend::{Autodiff, NdArray};
 use burn::tensor::Tensor;
 use burn::tensor::activation::relu;
-// Chapter 11 — Backpropagation, demystified.
+// Chapter 9 — Backpropagation, demystified.
 //
 // This is the example everyone needs: we compute the gradients TWICE.
 //      1. By hand, using the backprop formulas (the chain rule, one layer at a time).

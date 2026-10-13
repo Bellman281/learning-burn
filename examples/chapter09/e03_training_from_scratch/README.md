@@ -1,4 +1,4 @@
-# Burn From Scratch: Training with Zero Abstractions (Example 11.3)
+# Burn From Scratch: Training with Zero Abstractions (Example 9.3)
 
 This repository contains a raw, complete neural network training loop built using the **Burn** deep learning framework in Rust, alongside its **PyTorch** counterpart.
 

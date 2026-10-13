@@ -1,11 +1,11 @@
 use burn::backend::{Autodiff, NdArray};
 use burn::tensor::{Distribution, Tensor};
 
-// Chapter 11 — Training a network entirely from scratch.
+// Chapter 9 — Training a network entirely from scratch.
 //
 // No nn::Linear, no Module, no Optimizer. Just four weight tensors and the
 // four-beat loop you now understand: forward -> loss -> backward -> update.
-// We let autodiff compute the gradients (ch11_02 showed those formulas are real),
+// We let autodiff compute the gradients (Example 9.2 showed those formulas are real),
 // but we apply the SGD update ourselves: param <- param - lr * grad.
 //
 // Task: learn XOR, which needs a hidden layer + nonlinearity.
