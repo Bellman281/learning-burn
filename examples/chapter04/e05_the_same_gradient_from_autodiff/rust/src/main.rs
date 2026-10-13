@@ -3,7 +3,7 @@ use burn::tensor::Tensor;
 
 type B = Autodiff<NdArray>;
 
-// Instead of deriving the MSE gradient by hand (ch6_01), let autodiff compute it.
+// Instead of deriving the MSE gradient by hand (Example 4.4), let autodiff compute it.
 // At w = 0 the gradient equals -(2/n) X^T y, which is [-12, -35] for this data.
 fn main() {
     let dev = Default::default();
