@@ -1,9 +1,6 @@
-use burn::backend::NdArray;
 use burn::tensor::module::conv2d;
 use burn::tensor::ops::ConvOptions;
-use burn::tensor::{Tensor, TensorData};
-
-type Backend = NdArray;
+use burn::tensor::{Device, Tensor, TensorData};
 
 // A tiny LCG so Rust and Python draw exactly the same numbers.
 struct Lcg(u32);
@@ -85,16 +82,16 @@ struct Run {
 
 /// Returns (x, w, one Run per case, parameter count).
 fn build() -> (Vec<f32>, Vec<f32>, Vec<Run>, usize) {
-    let device = Default::default();
+    let device = Device::flex();
     let mut rng = Lcg(11);
     let (x_shape, w_shape) = ([1, 2, 5, 5], [3, 2, 3, 3]);
     let x: Vec<f32> = (0..50).map(|_| rng.small()).collect();
     let w: Vec<f32> = (0..54).map(|_| rng.small()).collect();
     let bias = vec![1.0f32, -1.0, 0.0];
 
-    let xt = Tensor::<Backend, 4>::from_data(TensorData::new(x.clone(), x_shape), &device);
-    let wt = Tensor::<Backend, 4>::from_data(TensorData::new(w.clone(), w_shape), &device);
-    let bt = Tensor::<Backend, 1>::from_data(TensorData::new(bias.clone(), [3]), &device);
+    let xt = Tensor::<4>::from_data(TensorData::new(x.clone(), x_shape), &device);
+    let wt = Tensor::<4>::from_data(TensorData::new(w.clone(), w_shape), &device);
+    let bt = Tensor::<1>::from_data(TensorData::new(bias.clone(), [3]), &device);
 
     let mut runs = Vec::new();
     for (name, s, p, d) in CASES {
@@ -102,7 +99,7 @@ fn build() -> (Vec<f32>, Vec<f32>, Vec<Run>, usize) {
         let options = ConvOptions::new([s, s], [p, p], [d, d], 1);
         let yt = conv2d(xt.clone(), wt.clone(), Some(bt.clone()), options);
         let burn_shape = yt.dims();
-        let burn: Vec<f32> = yt.into_data().to_vec().unwrap();
+        let burn: Vec<f32> = yt.into_data().try_to_vec().unwrap();
         let max_diff = y
             .iter()
             .zip(&burn)

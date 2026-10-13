@@ -1,11 +1,7 @@
-use burn::backend::{Autodiff, NdArray};
 use burn::tensor::activation::{log_softmax, relu};
 use burn::tensor::module::{conv2d, max_pool2d};
-use burn::tensor::ops::ConvOptions;
-use burn::tensor::{Int, Tensor, TensorData};
-
-// Only the check at the end uses autodiff. The training loop does not.
-type B = Autodiff<NdArray>;
+use burn::tensor::ops::{ConvOptions, MaxPoolOptions};
+use burn::tensor::{Device, Int, Tensor, TensorData};
 
 const SIZE: usize = 12; // image side
 const C: usize = 4; // conv filters
@@ -236,27 +232,28 @@ fn sgd(p: &mut Params, g: &Params) {
 
 // The check: the same first step in Burn, with autodiff doing the backward pass.
 fn burn_first_step(p: &Params, images: &[Vec<f32>], labels: &[usize]) -> (f32, Params) {
-    let device = Default::default();
+    // Only this check uses autodiff. The training loop does not.
+    let device = Device::flex().autodiff();
     let n = images.len();
     let pixels: Vec<f32> = images.iter().flatten().copied().collect();
-    let x = Tensor::<B, 4>::from_data(TensorData::new(pixels, [n, 1, SIZE, SIZE]), &device);
-    let cw = Tensor::<B, 4>::from_data(TensorData::new(p.cw.clone(), [C, 1, 3, 3]), &device)
-        .require_grad();
-    let cb = Tensor::<B, 1>::from_data(TensorData::new(p.cb.clone(), [C]), &device).require_grad();
-    let lw = Tensor::<B, 2>::from_data(TensorData::new(p.lw.clone(), [FEAT, CLASSES]), &device)
+    let x = Tensor::<4>::from_data(TensorData::new(pixels, [n, 1, SIZE, SIZE]), &device);
+    let cw =
+        Tensor::<4>::from_data(TensorData::new(p.cw.clone(), [C, 1, 3, 3]), &device).require_grad();
+    let cb = Tensor::<1>::from_data(TensorData::new(p.cb.clone(), [C]), &device).require_grad();
+    let lw = Tensor::<2>::from_data(TensorData::new(p.lw.clone(), [FEAT, CLASSES]), &device)
         .require_grad();
     let lb =
-        Tensor::<B, 1>::from_data(TensorData::new(p.lb.clone(), [CLASSES]), &device).require_grad();
+        Tensor::<1>::from_data(TensorData::new(p.lb.clone(), [CLASSES]), &device).require_grad();
     let y: Vec<i64> = labels.iter().map(|&l| l as i64).collect();
-    let y = Tensor::<B, 2, Int>::from_data(TensorData::new(y, [n, 1]), &device);
+    let y = Tensor::<2, Int>::from_data(TensorData::new(y, [n, 1]), &device);
 
     let options = ConvOptions::new([1, 1], [1, 1], [1, 1], 1);
     let h = relu(conv2d(x, cw.clone(), Some(cb.clone()), options));
-    let h = max_pool2d(h, [2, 2], [2, 2], [0, 0], [1, 1], false).reshape([n, FEAT]);
+    let h = max_pool2d(h, MaxPoolOptions::new([2, 2])).reshape([n, FEAT]);
     let logits = h.matmul(lw.clone()) + lb.clone().unsqueeze::<2>();
     let loss = log_softmax(logits, 1).gather(1, y).mean().neg();
     let grads = loss.backward();
-    let v = |t: TensorData| -> Vec<f32> { t.to_vec().unwrap() };
+    let v = |t: TensorData| -> Vec<f32> { t.try_to_vec().unwrap() };
     let g = Params {
         cw: v(cw.grad(&grads).unwrap().into_data()),
         cb: v(cb.grad(&grads).unwrap().into_data()),

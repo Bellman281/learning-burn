@@ -1,12 +1,9 @@
-use burn::backend::NdArray;
-use burn::tensor::{Int, Tensor};
-
-type B = NdArray;
+use burn::tensor::{Device, Int, Tensor};
 
 fn main() {
-    let dev = Default::default();
+    let dev = Device::flex();
 
-    let t = Tensor::<B, 1, Int>::arange(0..12, &dev);
+    let t = Tensor::<1, Int>::arange(0..12, &dev);
     let m = t.clone().reshape([3, 4]);
     let flat = m.clone().flatten::<1>(0, 1);
     let piece = m.clone().slice([0..2, 1..3]); // rows 0-1, cols 1-2
@@ -14,7 +11,7 @@ fn main() {
 
     println!("reshaped =\n{}", m);
 
-    let rows = m.select(0, Tensor::<B, 1, Int>::from_data([0, 2], &dev));
+    let rows = m.select(0, Tensor::<1, Int>::from_data([0, 2], &dev));
 
     println!("flat=\n{}", flat);
     println!("piece=\n{}", piece);

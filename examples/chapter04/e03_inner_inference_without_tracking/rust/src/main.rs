@@ -1,17 +1,14 @@
-use burn::backend::{Autodiff, NdArray};
-use burn::tensor::Tensor;
+use burn::tensor::{Device, Tensor};
 
-type B = Autodiff<NdArray>;
-
-// There is no `no_grad` block in Burn. For inference you either don't use the
-// `Autodiff` wrapper at all, or call `inner()` to drop to the base backend and
-// skip graph tracking.
+// There is no `no_grad` block in Burn. For inference you either create tensors
+// on a device without autodiff, or call `inner()` (an alias of
+// `without_autodiff()`) to take a tensor off autodiff and skip graph tracking.
 fn main() {
-    let dev = Default::default();
+    let dev = Device::flex().autodiff();
 
-    let x = Tensor::<B, 1>::from_floats([1.0, 2.0, 3.0], &dev).require_grad();
+    let x = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &dev).require_grad();
 
-    // Peel off the autodiff graph -> a plain NdArray tensor, no tracking.
+    // Drop autodiff -> a plain flex tensor, no tracking.
     let plain = x.inner();
     let y = plain.add_scalar(5.0); // cheap inference op
 

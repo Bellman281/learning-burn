@@ -4,6 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-burn = { version = "0.21.0", features = ["ndarray", "dataset"] }
+burn = { version = "0.22.0", features = ["flex", "dataset"] }
 serde = { version = "1", features = ["derive"] }
 csv = "1.3"

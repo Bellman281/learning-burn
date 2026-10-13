@@ -1,6 +1,5 @@
-use burn::backend::{Autodiff, NdArray};
-use burn::tensor::Tensor;
 use burn::tensor::activation::relu;
+use burn::tensor::{Device, Tensor};
 // Chapter 9 — Backpropagation, demystified.
 //
 // This is the example everyone needs: we compute the gradients TWICE.
@@ -16,18 +15,16 @@ use burn::tensor::activation::relu;
 //      dh= dout @ W2ᵀ                 # push error into hidden activations
 //      dh_pre= dh * (h_pre > 0)      # back through relu: pass where input was > 0
 //      dW1= xᵀ @ dh_pre               # gradient for layer 1
-type B = Autodiff<NdArray>;
 
 fn main() {
-    let dev = Default::default();
+    let dev = Device::flex().autodiff();
 
-    let x = Tensor::<B, 2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &dev);
-    let t = Tensor::<B, 2>::from_floats([[1.0], [0.0]], &dev);
+    let x = Tensor::<2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &dev);
+    let t = Tensor::<2>::from_floats([[1.0], [0.0]], &dev);
     let n = x.dims()[0] as f64; // batch size = 2
 
-    let w1 = Tensor::<B, 2>::from_floats([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]], &dev)
-        .require_grad();
-    let w2 = Tensor::<B, 2>::from_floats([[0.7], [0.8], [0.9]], &dev).require_grad();
+    let w1 = Tensor::<2>::from_floats([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]], &dev).require_grad();
+    let w2 = Tensor::<2>::from_floats([[0.7], [0.8], [0.9]], &dev).require_grad();
 
     // ---- forward ----
     let h_pre = x.clone().matmul(w1.clone()); // [2, 3]

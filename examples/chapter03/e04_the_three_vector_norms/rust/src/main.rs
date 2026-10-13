@@ -1,11 +1,9 @@
-use burn::backend::NdArray;
-use burn::tensor::{Tensor, linalg};
-
-type B = NdArray;
+use burn::linalg;
+use burn::tensor::{Device, Tensor};
 
 fn main() {
-    let dev = Default::default();
-    let x = Tensor::<B, 1>::from_floats([3.0, 4.0], &dev);
+    let dev = Device::flex();
+    let x = Tensor::<1>::from_floats([3.0, 4.0], &dev);
 
     let l2 = linalg::l2_norm(x.clone(), 0); // 5.0 — the usual one
     let l1 = linalg::l1_norm(x.clone(), 0); // 7.0

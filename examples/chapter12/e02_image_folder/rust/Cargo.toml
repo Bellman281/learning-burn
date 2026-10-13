@@ -4,5 +4,5 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-burn = { version = "0.21.0", features = ["ndarray", "dataset"] }
+burn = { version = "0.22.0", features = ["flex", "dataset"] }
 image = { version = "0.25", default-features = false, features = ["png"] }

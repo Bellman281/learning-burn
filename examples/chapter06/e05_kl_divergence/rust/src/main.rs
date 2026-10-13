@@ -1,14 +1,11 @@
-use burn::backend::NdArray;
 use burn::nn::loss::{KLDivLossConfig, Reduction};
 use burn::tensor::activation::{log_softmax, softmax};
-use burn::tensor::{Tensor, TensorData};
-
-type B = NdArray;
+use burn::tensor::{Device, Tensor, TensorData};
 
 fn main() {
-    let dev = Default::default();
+    let dev = Device::flex();
 
-    let student_logits = Tensor::<B, 2>::from_data(
+    let student_logits = Tensor::<2>::from_data(
         TensorData::from([
             [2.0, 0.5, -1.0, 0.0],
             [0.1, 1.2, 0.3, -0.5],
@@ -17,7 +14,7 @@ fn main() {
         &dev,
     );
 
-    let teacher_logits = Tensor::<B, 2>::from_data(
+    let teacher_logits = Tensor::<2>::from_data(
         TensorData::from([
             [2.5, 0.2, -0.8, 0.1],
             [-0.1, 1.6, 0.2, -0.3],
@@ -34,5 +31,5 @@ fn main() {
         .init()
         .forward(student, teacher, Reduction::Auto); // Auto == batchmean
 
-    println!("loss = {}", loss.into_scalar()); // ~0.034
+    println!("loss = {}", loss.into_scalar::<f32>()); // ~0.034
 }

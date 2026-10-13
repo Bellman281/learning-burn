@@ -1,12 +1,9 @@
-use burn::backend::NdArray;
-use burn::tensor::Tensor;
-
-type Backend = NdArray;
+use burn::tensor::{Device, Tensor};
 
 fn main() {
-    let device = Default::default();
+    let device = Device::flex();
 
-    let input = Tensor::<Backend, 1>::from_floats([1.0, 2.0, 3.0, 4.0], &device);
+    let input = Tensor::<1>::from_floats([1.0, 2.0, 3.0, 4.0], &device);
 
     let min = input.clone().min();
     let max = input.clone().max();

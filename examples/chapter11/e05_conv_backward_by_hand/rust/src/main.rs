@@ -1,9 +1,6 @@
-use burn::backend::{Autodiff, NdArray};
 use burn::tensor::module::{conv2d, max_pool2d};
-use burn::tensor::ops::ConvOptions;
-use burn::tensor::{Tensor, TensorData};
-
-type B = Autodiff<NdArray>;
+use burn::tensor::ops::{ConvOptions, MaxPoolOptions};
+use burn::tensor::{Device, Tensor, TensorData};
 
 // A tiny LCG so Rust and Python draw exactly the same numbers.
 struct Lcg(u32);
@@ -162,24 +159,24 @@ fn backward_by_hand(x: &[f32], w: &[f32], f: &Forward, r: &[f32]) -> Grads {
 
 // The same model in Burn, differentiated by autodiff.
 fn backward_by_burn(x: &[f32], w: &[f32], b: &[f32], r: &[f32]) -> (f32, Grads) {
-    let device = Default::default();
+    let device = Device::flex().autodiff();
     let t = |v: &[f32], shape: [usize; 4]| {
-        Tensor::<B, 4>::from_data(TensorData::new(v.to_vec(), shape), &device)
+        Tensor::<4>::from_data(TensorData::new(v.to_vec(), shape), &device)
     };
     let xt = t(x, [N, CI, H, H]).require_grad();
     let wt = t(w, [CO, CI, K, K]).require_grad();
-    let bt = Tensor::<B, 1>::from_data(TensorData::new(b.to_vec(), [CO]), &device).require_grad();
+    let bt = Tensor::<1>::from_data(TensorData::new(b.to_vec(), [CO]), &device).require_grad();
     let y = conv2d(
         xt.clone(),
         wt.clone(),
         Some(bt.clone()),
         ConvOptions::new([1, 1], [0, 0], [1, 1], 1),
     );
-    let pooled = max_pool2d(y, [2, 2], [2, 2], [0, 0], [1, 1], false);
+    let pooled = max_pool2d(y, MaxPoolOptions::new([2, 2]));
     let loss = (pooled * t(r, [N, CO, HP, HP])).sum();
     let grads = loss.backward();
-    let vec = |g: Tensor<NdArray, 4>| -> Vec<f32> { g.into_data().to_vec().unwrap() };
-    let db = bt.grad(&grads).unwrap().into_data().to_vec().unwrap();
+    let vec = |g: Tensor<4>| -> Vec<f32> { g.into_data().try_to_vec().unwrap() };
+    let db = bt.grad(&grads).unwrap().into_data().try_to_vec().unwrap();
     let out = Grads {
         gy: Vec::new(), // autodiff keeps this one to itself
         db,

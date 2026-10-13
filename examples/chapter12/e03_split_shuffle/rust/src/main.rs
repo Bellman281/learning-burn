@@ -1,20 +1,17 @@
 use std::sync::Arc;
 
-use burn::backend::NdArray;
 use burn::data::dataloader::DataLoaderBuilder;
 use burn::data::dataloader::batcher::Batcher;
 use burn::data::dataset::transform::{PartialDataset, ShuffledDataset};
 use burn::data::dataset::{Dataset, InMemDataset};
-use burn::tensor::backend::Backend;
-
-type MyBackend = NdArray;
+use burn::tensor::Device;
 
 // Items are just their own index, 0..20, so every order is easy to read.
 #[derive(Clone, Default)]
 struct Ids;
 
-impl<B: Backend> Batcher<B, u32, Vec<u32>> for Ids {
-    fn batch(&self, items: Vec<u32>, _device: &B::Device) -> Vec<u32> {
+impl Batcher<u32, Vec<u32>> for Ids {
+    fn batch(&self, items: Vec<u32>, _device: &Device) -> Vec<u32> {
         items
     }
 }
@@ -35,20 +32,22 @@ fn build() -> (Vec<u32>, Vec<u32>, Vec<u32>, Vec<u32>, Vec<u32>) {
     let shuffled = Arc::new(ShuffledDataset::new(all, 42));
     let train = PartialDataset::new(shuffled.clone(), 0, 16);
     let val = PartialDataset::new(shuffled, 16, 20);
-    let train_ids: Vec<u32> = train.iter().collect();
-    let val_ids: Vec<u32> = val.iter().collect();
+    let train_ids: Vec<u32> = train.iter().map(Result::unwrap).collect();
+    let val_ids: Vec<u32> = val.iter().map(Result::unwrap).collect();
 
     // 2. A loader that reshuffles the training set EVERY epoch, from one seed.
     let make_loader = || {
-        DataLoaderBuilder::<MyBackend, u32, Vec<u32>>::new(Ids)
+        DataLoaderBuilder::<u32, Vec<u32>>::new(Ids)
             .batch_size(4)
             .shuffle(7)
+            .set_device(Device::flex())
             .build(InMemDataset::new(train_ids.clone()))
     };
     let loader = make_loader();
-    let epoch1: Vec<u32> = loader.iter().flatten().collect();
-    let epoch2: Vec<u32> = loader.iter().flatten().collect();
-    let again: Vec<u32> = make_loader().iter().flatten().collect(); // same seed, fresh loader
+    // Each batch arrives as a Result; unwrap it, then flatten the batches into one order.
+    let epoch1: Vec<u32> = loader.iter().flat_map(Result::unwrap).collect();
+    let epoch2: Vec<u32> = loader.iter().flat_map(Result::unwrap).collect();
+    let again: Vec<u32> = make_loader().iter().flat_map(Result::unwrap).collect(); // same seed, fresh loader
 
     (train_ids, val_ids, epoch1, epoch2, again)
 }

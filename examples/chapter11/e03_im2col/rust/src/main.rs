@@ -1,9 +1,6 @@
-use burn::backend::NdArray;
 use burn::tensor::module::{conv2d, unfold4d};
 use burn::tensor::ops::{ConvOptions, UnfoldOptions};
-use burn::tensor::{Tensor, TensorData};
-
-type Backend = NdArray;
+use burn::tensor::{Device, Tensor, TensorData};
 
 // A tiny LCG so Rust and Python draw exactly the same numbers.
 struct Lcg(u32);
@@ -85,7 +82,7 @@ struct Out {
 }
 
 fn build() -> Out {
-    let device = Default::default();
+    let device = Device::flex();
     let mut rng = Lcg(11);
     let x: Vec<f32> = (0..50).map(|_| rng.small()).collect(); // [1, 2, 5, 5], as in Example 11.2
     let w: Vec<f32> = (0..54).map(|_| rng.small()).collect(); // [3, 2, 3, 3]
@@ -93,24 +90,24 @@ fn build() -> Out {
 
     // 1. Unfold the patches by hand: [2*3*3, 5*5] = [18, 25].
     let (cols, ho, wo) = im2col(&x, [2, 5, 5], 3, 1, 1);
-    let cols_t = Tensor::<Backend, 2>::from_data(TensorData::new(cols.clone(), [18, 25]), &device);
+    let cols_t = Tensor::<2>::from_data(TensorData::new(cols.clone(), [18, 25]), &device);
 
     // 2. The kernels are already rows: [3, 2, 3, 3] read as [3, 18] is the same memory.
-    let w_mat = Tensor::<Backend, 2>::from_data(TensorData::new(w.clone(), [3, 18]), &device);
-    let b = Tensor::<Backend, 2>::from_data(TensorData::new(bias.clone(), [3, 1]), &device);
+    let w_mat = Tensor::<2>::from_data(TensorData::new(w.clone(), [3, 18]), &device);
+    let b = Tensor::<2>::from_data(TensorData::new(bias.clone(), [3, 1]), &device);
 
     // 3. The whole convolution: ONE matmul, plus the bias broadcast along each row.
     let y = (w_mat.clone().matmul(cols_t.clone()) + b).reshape([1, 3, ho, wo]); // [3,18]@[18,25]
 
     // The checks: Burn's unfold4d and Burn's conv2d.
-    let xt = Tensor::<Backend, 4>::from_data(TensorData::new(x, [1, 2, 5, 5]), &device);
+    let xt = Tensor::<4>::from_data(TensorData::new(x, [1, 2, 5, 5]), &device);
     let unfolded = unfold4d(
         xt.clone(),
         [3, 3],
         UnfoldOptions::new([1, 1], [1, 1], [1, 1]),
     );
-    let wt = Tensor::<Backend, 4>::from_data(TensorData::new(w, [3, 2, 3, 3]), &device);
-    let bt = Tensor::<Backend, 1>::from_data(TensorData::new(bias, [3]), &device);
+    let wt = Tensor::<4>::from_data(TensorData::new(w, [3, 2, 3, 3]), &device);
+    let bt = Tensor::<1>::from_data(TensorData::new(bias, [3]), &device);
     let conv = conv2d(
         xt,
         wt,
@@ -118,7 +115,7 @@ fn build() -> Out {
         ConvOptions::new([1, 1], [1, 1], [1, 1], 1),
     );
 
-    let max_abs = |t: Tensor<Backend, 2>| t.abs().max().into_scalar();
+    let max_abs = |t: Tensor<2>| t.abs().max().into_scalar();
     let cols_diff = max_abs(unfolded.reshape([18, 25]) - cols_t.clone());
     let y_diff = max_abs((y.clone() - conv).reshape([3, 25]));
     Out {
@@ -128,7 +125,7 @@ fn build() -> Out {
         first_patch: (0..18).map(|r| cols[r * 25]).collect(),
         cols_diff,
         y_diff,
-        y: y.into_data().to_vec().unwrap(),
+        y: y.into_data().try_to_vec().unwrap(),
     }
 }
 

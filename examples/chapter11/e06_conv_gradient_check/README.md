@@ -20,4 +20,4 @@ pytest examples/chapter11/e06_conv_gradient_check/python/main.py      # the Pyth
 
 ## Parity
 
-The hand-written gradients agree with finite differences to a relative error below 1e-8 and with Burn's autodiff on `Autodiff<NdArray<f64>>` (and torch autograd) to about 1e-14. A backward pass that forgets to rotate the kernel fails the check with a relative error of 1.92.
+The hand-written gradients agree with finite differences to a relative error below 1e-8 and with Burn's autodiff in f64 (tensors created with `(&device, DType::F64)` on `Device::flex().autodiff()`; the device's default float is f32) (and torch autograd) to about 1e-14 or better (exactly, on this run, for the bias and weight gradients). A backward pass that forgets to rotate the kernel fails the check with a relative error of 1.92.

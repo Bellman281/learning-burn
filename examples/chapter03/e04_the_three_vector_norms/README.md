@@ -7,4 +7,4 @@ This example compares how vector norms are computed in PyTorch and Burn, using t
 - **$L_\infty$ Norm (4.0):** Takes the largest absolute component. In Burn, use `linalg::max_abs_norm`.
 
 ### Key Difference
-While PyTorch configures different norms using the `ord` argument in a single function, Burn provides explicit, dedicated functions for each norm under the `linalg` module.
+While PyTorch configures different norms using the `ord` argument in a single function, Burn provides explicit, dedicated functions for each norm under the `linalg` module (the `burn-linalg` crate in Burn 0.22, enabled with the `"linalg"` feature).

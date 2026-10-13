@@ -1,37 +1,34 @@
-use burn::backend::{Autodiff, NdArray};
 use burn::module::Module;
 use burn::nn::loss::{MseLoss, Reduction};
 use burn::nn::{Linear, LinearConfig};
-use burn::optim::{GradientsParams, Optimizer, SgdConfig};
-use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
-
-type MyBackend = Autodiff<NdArray>;
+use burn::optim::{GradientsParams, SgdConfig};
+use burn::tensor::{Device, Tensor};
 
 // A minimal model: a single Linear(1 -> 1) layer, i.e. y = w*x + b.
 #[derive(Module, Debug)]
-struct Model<B: Backend> {
-    linear: Linear<B>,
+struct Model {
+    linear: Linear,
 }
 
-impl<B: Backend> Model<B> {
-    fn new(device: &B::Device) -> Self {
+impl Model {
+    fn new(device: &Device) -> Self {
         Self {
             linear: LinearConfig::new(1, 1).init(device),
         }
     }
-    fn forward(&self, x: Tensor<B, 2>) -> Tensor<B, 2> {
+    fn forward(&self, x: Tensor<2>) -> Tensor<2> {
         self.linear.forward(x)
     }
 }
 fn main() {
-    let device = Default::default();
+    // Training needs gradients, so the device has autodiff switched on.
+    let device = Device::flex().autodiff();
 
     // Data generated from y = 2x + 1.
-    let x = Tensor::<MyBackend, 2>::from_floats([[1.0], [2.0], [3.0], [4.0]], &device);
-    let y = Tensor::<MyBackend, 2>::from_floats([[3.0], [5.0], [7.0], [9.0]], &device);
+    let x = Tensor::<2>::from_floats([[1.0], [2.0], [3.0], [4.0]], &device);
+    let y = Tensor::<2>::from_floats([[3.0], [5.0], [7.0], [9.0]], &device);
 
-    let mut model: Model<MyBackend> = Model::new(&device);
+    let mut model = Model::new(&device);
     let mut optim = SgdConfig::new().init();
     let lr = 0.02;
 
@@ -46,6 +43,6 @@ fn main() {
     }
 
     // Should now approximate y = 2x + 1, so f(5) ~ 11.
-    let test = Tensor::<MyBackend, 2>::from_floats([[5.0]], &device);
+    let test = Tensor::<2>::from_floats([[5.0]], &device);
     println!("prediction for x=5: {}", model.forward(test).to_data()); // ~11
 }

@@ -1,12 +1,8 @@
-use burn::backend::NdArray;
 use burn::data::dataloader::DataLoaderBuilder;
 use burn::data::dataloader::batcher::Batcher;
 use burn::data::dataset::{Dataset, InMemDataset};
-use burn::tensor::backend::Backend;
-use burn::tensor::{Int, Tensor, TensorData};
+use burn::tensor::{Device, Int, Tensor, TensorData};
 use serde::Deserialize;
-
-type MyBackend = NdArray;
 
 const CSV: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -34,6 +30,7 @@ impl Standardize {
     fn fit(data: &InMemDataset<Reading>) -> Self {
         let rows: Vec<[f32; 3]> = data
             .iter()
+            .map(Result::unwrap) // get() on an in-memory dataset cannot fail
             .map(|r| [r.temperature, r.vibration, r.rpm])
             .collect();
         let n = rows.len() as f32;
@@ -49,14 +46,14 @@ impl Standardize {
 }
 
 #[derive(Clone, Debug)]
-struct MachineBatch<B: Backend> {
-    features: Tensor<B, 2>,     // [batch, 3], standardised
-    targets: Tensor<B, 1, Int>, // [batch]
+struct MachineBatch {
+    features: Tensor<2>,     // [batch, 3], standardised
+    targets: Tensor<1, Int>, // [batch]
 }
 
 // The Batcher is where rows become tensors, and where the scaling is applied.
-impl<B: Backend> Batcher<B, Reading, MachineBatch<B>> for Standardize {
-    fn batch(&self, items: Vec<Reading>, device: &B::Device) -> MachineBatch<B> {
+impl Batcher<Reading, MachineBatch> for Standardize {
+    fn batch(&self, items: Vec<Reading>, device: &Device) -> MachineBatch {
         let n = items.len();
         let mut x = Vec::with_capacity(n * 3);
         for r in &items {
@@ -76,19 +73,20 @@ impl<B: Backend> Batcher<B, Reading, MachineBatch<B>> for Standardize {
 fn build() -> (usize, usize, Standardize, Vec<usize>, Vec<f32>) {
     let data: InMemDataset<Reading> =
         InMemDataset::from_csv(CSV, &csv::ReaderBuilder::new()).expect("read machines.csv");
-    let failures = data.iter().filter(|r| r.failure == 1).count();
+    let failures = data.iter().map(Result::unwrap).filter(|r| r.failure == 1).count();
     println!("first row  = {:?}", data.get(0).unwrap());
 
     let scaler = Standardize::fit(&data);
     let rows = data.len();
-    let loader =
-        DataLoaderBuilder::<MyBackend, Reading, MachineBatch<MyBackend>>::new(scaler.clone())
-            .batch_size(32)
-            .build(data);
+    let loader = DataLoaderBuilder::<Reading, MachineBatch>::new(scaler.clone())
+        .batch_size(32)
+        .set_device(Device::flex())
+        .build(data);
 
     let mut sizes = Vec::new();
     let mut first = Vec::new();
     for batch in loader.iter() {
+        let batch = batch.expect("load a batch"); // a failed get() arrives here as an Err
         let [n, _] = batch.features.dims();
         if sizes.is_empty() {
             println!(
@@ -100,7 +98,7 @@ fn build() -> (usize, usize, Standardize, Vec<usize>, Vec<f32>) {
                 .features
                 .slice([0..1, 0..3])
                 .into_data()
-                .to_vec()
+                .try_to_vec()
                 .unwrap();
         }
         sizes.push(n);

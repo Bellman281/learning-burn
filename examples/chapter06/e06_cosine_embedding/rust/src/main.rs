@@ -1,16 +1,13 @@
-use burn::backend::NdArray;
 use burn::nn::loss::CosineEmbeddingLossConfig;
-use burn::tensor::{Int, Tensor};
-
-type B = NdArray;
+use burn::tensor::{Device, Int, Tensor};
 
 fn main() {
-    let dev = Default::default();
+    let dev = Device::flex();
 
     // two batches of embeddings; +1 = "should match", -1 = "should differ"
-    let a = Tensor::<B, 2>::from_floats([[1.0, 0.0], [1.0, 0.0]], &dev);
-    let b = Tensor::<B, 2>::from_floats([[0.9, 0.1], [-1.0, 0.0]], &dev);
-    let y = Tensor::<B, 1, Int>::from_ints([1, -1], &dev);
+    let a = Tensor::<2>::from_floats([[1.0, 0.0], [1.0, 0.0]], &dev);
+    let b = Tensor::<2>::from_floats([[0.9, 0.1], [-1.0, 0.0]], &dev);
+    let y = Tensor::<1, Int>::from_ints([1, -1], &dev);
 
     let loss = CosineEmbeddingLossConfig::new().init().forward(a, b, y);
 

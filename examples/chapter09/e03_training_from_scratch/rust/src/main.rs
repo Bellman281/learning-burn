@@ -1,5 +1,4 @@
-use burn::backend::{Autodiff, NdArray};
-use burn::tensor::{Distribution, Tensor};
+use burn::tensor::{Device, Distribution, Tensor};
 
 // Chapter 9 — Training a network entirely from scratch.
 //
@@ -10,29 +9,22 @@ use burn::tensor::{Distribution, Tensor};
 //
 // Task: learn XOR, which needs a hidden layer + nonlinearity.
 
-type B = Autodiff<NdArray>;
-
 fn main() {
-    let dev = Default::default();
+    let dev = Device::flex().autodiff();
 
-    let x = Tensor::<B, 2>::from_floats(
-        [[0.0, 0.0], [0.0, 1.0], [1.0, 0.0], [1.0, 1.0]],
-        &dev,
-    );
-    let y = Tensor::<B, 2>::from_floats([[0.0], [1.0], [1.0], [0.0]], &dev);
+    let x = Tensor::<2>::from_floats([[0.0, 0.0], [0.0, 1.0], [1.0, 0.0], [1.0, 1.0]], &dev);
+    let y = Tensor::<2>::from_floats([[0.0], [1.0], [1.0], [0.0]], &dev);
 
     let hidden = 8;
 
     // Random init breaks symmetry so hidden units can learn different features.
     // Biases start at zero. require_grad() marks each as a trainable leaf.
     let mut w1 =
-        Tensor::<B, 2>::random([2, hidden], Distribution::Uniform(-1.0, 1.0), &dev)
-            .require_grad();
-    let mut b1 = Tensor::<B, 2>::zeros([1, hidden], &dev).require_grad();
+        Tensor::<2>::random([2, hidden], Distribution::Uniform(-1.0, 1.0), &dev).require_grad();
+    let mut b1 = Tensor::<2>::zeros([1, hidden], &dev).require_grad();
     let mut w2 =
-        Tensor::<B, 2>::random([hidden, 1], Distribution::Uniform(-1.0, 1.0), &dev)
-            .require_grad();
-    let mut b2 = Tensor::<B, 2>::zeros([1, 1], &dev).require_grad();
+        Tensor::<2>::random([hidden, 1], Distribution::Uniform(-1.0, 1.0), &dev).require_grad();
+    let mut b2 = Tensor::<2>::zeros([1, 1], &dev).require_grad();
 
     let lr = 0.1;
 
@@ -54,9 +46,9 @@ fn main() {
         let g_w2 = w2.grad(&grads).unwrap();
         let g_b2 = b2.grad(&grads).unwrap();
 
-        // Manual SGD step. inner() drops down to the plain backend to do the
-        // arithmetic; from_inner(...).require_grad() lifts the result back into
-        // a fresh trainable leaf for the next iteration.
+        // Manual SGD step. inner() takes the tensor off autodiff to do the
+        // arithmetic; from_inner(...).require_grad() puts the result back on
+        // autodiff as a fresh trainable leaf for the next iteration.
         w1 = Tensor::from_inner(w1.inner() - g_w1.mul_scalar(lr)).require_grad();
         b1 = Tensor::from_inner(b1.inner() - g_b1.mul_scalar(lr)).require_grad();
         w2 = Tensor::from_inner(w2.inner() - g_w2.mul_scalar(lr)).require_grad();

@@ -9,5 +9,5 @@ This example shows how to calculate the Cross-Entropy Loss, which is the standar
 - **Numerical Stability:** Fusing the log-softmax and cross-entropy steps prevents underflow or $NaN$s. By canceling out adjacent exponential and logarithm operations algebraically, the computer avoids creating dangerously small float values.
 
 ### API Mapping & Implementation in Burn
-- **Target Tensor Types:** The target indices must be passed as integer tensors (`Tensor<B, 1, Int>`).
+- **Target Tensor Types:** The target indices must be passed as integer tensors (`Tensor<1, Int>`).
 - **Configuration Pattern:** Instead of instantiating the struct directly, Burn uses a config pattern: `CrossEntropyLossConfig::new().init(&dev)`.

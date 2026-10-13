@@ -1,12 +1,9 @@
-use burn::backend::NdArray;
-use burn::tensor::Tensor;
-
-type B = NdArray;
+use burn::tensor::{Device, Tensor};
 
 fn main() {
-    let dev = Default::default();
+    let dev = Device::flex();
 
-    let x = Tensor::<B, 2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &dev);
+    let x = Tensor::<2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &dev);
     let total = x.clone().sum(); // scalar tensor 10
     let col_sum = x.clone().sum_dim(0); // [[4, 6]]
     let row_mean = x.clone().mean_dim(1); // [[1.5],[3.5]]

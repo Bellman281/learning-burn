@@ -25,4 +25,4 @@ pytest examples/chapter11/e05_conv_backward_by_hand/python/main.py      # the Py
 
 ## Parity
 
-The data are multiples of 1/4, so every sum is exact: the hand-written gradients equal `loss.backward()` in Burn (`Autodiff<NdArray>`) and torch `.backward()` bit for bit (`max|hand - burn| = 0`).
+The data are multiples of 1/4, so every sum is exact: the hand-written gradients equal `loss.backward()` in Burn (on the autodiff device `Device::flex().autodiff()`) and torch `.backward()` bit for bit (`max|hand - burn| = 0`).

@@ -1,6 +1,5 @@
-use burn::backend::NdArray;
-use burn::tensor::Tensor;
 use burn::tensor::activation::relu;
+use burn::tensor::{Device, Tensor};
 // Chapter 9 — A neural network from scratch.
 //
 // No nn::Linear, no Module derive — just weight matrices and matmuls, so you can
@@ -9,22 +8,21 @@ use burn::tensor::activation::relu;
 //  h  = relu(x @ W1)    hidden layer    (batch=2, 2 features -> 3 hidden units)
 //  out = h @ W2         output layer    (3 hidden -> 1 output)
 //
-type B = NdArray;
 
 fn main() {
-    let dev = Default::default();
+    let dev = Device::flex();
 
     // A batch of two examples, each with two features.
-    let x = Tensor::<B, 2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &dev);
+    let x = Tensor::<2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &dev);
 
     // Expected targets for the input batch — one target per example, so [2, 1],
     // matching the shape the network outputs.
-    let t = Tensor::<B, 2>::from_floats([[1.0], [0.0]], &dev);
+    let t = Tensor::<2>::from_floats([[1.0], [0.0]], &dev);
 
     // Fixed weights so every number below is reproducible.
-    let w1 = Tensor::<B, 2>::from_floats([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]], &dev);
+    let w1 = Tensor::<2>::from_floats([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]], &dev);
 
-    let w2 = Tensor::<B, 2>::from_floats([[0.7], [0.8], [0.9]], &dev);
+    let w2 = Tensor::<2>::from_floats([[0.7], [0.8], [0.9]], &dev);
     // Forward pass, layer by layer.
     let h_pre = x.clone().matmul(w1.clone()); // pre-activation [2, 3]
 
