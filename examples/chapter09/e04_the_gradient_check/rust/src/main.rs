@@ -1,6 +1,6 @@
 use burn::backend::{Autodiff, NdArray};
 use burn::tensor::Tensor;
-// Chapter 11 — Gradient checking: how do you KNOW backprop is right?
+// Chapter 9 — Gradient checking: how do you KNOW backprop is right?
 //
 // The definition of a derivative is a limit of finite differences:
 // f'(w) ≈ [ f(w + eps) - f(w - eps) ] / (2 * eps)
@@ -8,8 +8,8 @@ use burn::tensor::Tensor;
 // compare it to what autodiff reports. If they agree, your gradients are correct.
 // This "numerical gradient check" is the standard sanity test when building nets.
 //
-// Toy loss so the arithmetic is easy to follow: f'(w) = 2*(3w - 2)*3.
-// Analytic derivative: f(w) = (3w - 2)^2 At w = 0.5 that is -3.0.
+// Toy loss so the arithmetic is easy to follow: f(w) = (3w - 2)^2.
+// Analytic derivative: f'(w) = 2*(3w - 2)*3. At w = 0.5 that is -3.0.
 //
 type B = Autodiff<NdArray>;
 

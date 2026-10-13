@@ -1,4 +1,4 @@
-# Gradient Checking: Verifying Backpropagation (Example 11.4)
+# Gradient Checking: Verifying Backpropagation (Example 9.4)
 
 A robust sanity check to prove that your backpropagation math and autodiff engine are completely correct.
 

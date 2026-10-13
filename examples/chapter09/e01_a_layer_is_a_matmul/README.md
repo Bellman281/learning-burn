@@ -1,4 +1,4 @@
-# Burn From Scratch: What a Layer Actually Is (Example 11.1)
+# Burn From Scratch: What a Layer Actually Is (Example 9.1)
 
 This repository contains a raw, from-scratch implementation of a multi-layer neural network using the **Burn** deep learning framework in Rust, alongside its **PyTorch** counterpart. 
 
@@ -34,7 +34,7 @@ sq_err = [[3.7636], [40.7044]]
 loss   = 22.234
 ```
 
-Nothing here trains yet — no gradients, no updates. That comes in Example 11.2, which reuses this exact network, targets, and loss, then differentiates it by hand and by autodiff. The $22.234$ you see above is the same number that example starts from.
+Nothing here trains yet — no gradients, no updates. That comes in Example 9.2, which reuses this exact network, targets, and loss, then differentiates it by hand and by autodiff. The $22.234$ you see above is the same number that example starts from.
 
 ## Key Concepts Covered
 

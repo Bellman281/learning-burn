@@ -1,4 +1,4 @@
-# Burn Autodiff Demystified: Gradients Computed Twice (Example 11.2)
+# Burn Autodiff Demystified: Gradients Computed Twice (Example 9.2)
 
 This repository contains an essential, eye-opening comparison of backpropagation implemented **by hand** versus **automatic differentiation (Autodiff)** using the **Burn** deep learning framework in Rust, alongside its **PyTorch** counterpart.
 
