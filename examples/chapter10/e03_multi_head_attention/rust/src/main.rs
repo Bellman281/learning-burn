@@ -1,7 +1,6 @@
-use burn::backend::NdArray;
 use burn::nn::{Linear, LinearConfig};
-use burn::tensor::Tensor;
 use burn::tensor::activation::softmax;
+use burn::tensor::{Device, Tensor};
 
 // Chapter 10 — Multi-head attention.
 //
@@ -16,9 +15,8 @@ use burn::tensor::activation::softmax;
 //      4. concatenate heads back together swap_dims -> reshape      [seq, d_model]
 //      5. a final output projection                                 [seq, d_model]
 
-type B = NdArray;
 fn main() {
-    let dev = Default::default();
+    let dev = Device::flex();
 
     let seq = 3;
     let d_model = 4;
@@ -26,7 +24,7 @@ fn main() {
     let d_k = d_model / n_heads; // 2
 
     // A toy input sequence: 3 tokens, each a 4-dim embedding.
-    let x = Tensor::<B, 2>::from_floats(
+    let x = Tensor::<2>::from_floats(
         [
             [1.0, 0.0, 1.0, 0.0],
             [0.0, 1.0, 0.0, 1.0],
@@ -36,10 +34,10 @@ fn main() {
     );
 
     // Learned projections (random init here — the shapes are what matter).
-    let wq: Linear<B> = LinearConfig::new(d_model, d_model).init(&dev);
-    let wk: Linear<B> = LinearConfig::new(d_model, d_model).init(&dev);
-    let wv: Linear<B> = LinearConfig::new(d_model, d_model).init(&dev);
-    let wo: Linear<B> = LinearConfig::new(d_model, d_model).init(&dev);
+    let wq: Linear = LinearConfig::new(d_model, d_model).init(&dev);
+    let wk: Linear = LinearConfig::new(d_model, d_model).init(&dev);
+    let wv: Linear = LinearConfig::new(d_model, d_model).init(&dev);
+    let wo: Linear = LinearConfig::new(d_model, d_model).init(&dev);
 
     // 1. project.
     let q = wq.forward(x.clone());
