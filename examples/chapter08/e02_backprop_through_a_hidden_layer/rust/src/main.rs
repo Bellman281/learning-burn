@@ -1,21 +1,19 @@
-use burn::backend::{Autodiff, NdArray};
-use burn::tensor::Tensor;
 use burn::tensor::activation::relu;
+use burn::tensor::{Device, Tensor};
 // The heart of backpropagation: gradients flow *through a hidden layer* back to
 // the first weight matrix. We build a tiny 2-layer net by hand with fixed
 // weights so every number is reproducible.
 // Because relu'(z) = 1 for z > 0, the gradient passes cleanly to both layers here.
-type B = Autodiff<NdArray>;
 
 fn main() {
-    let dev = Default::default();
+    let dev = Device::flex().autodiff();
 
-    let x = Tensor::<B, 2>::from_floats([[1.0, 2.0]], &dev);
-    let target = Tensor::<B, 2>::from_floats([[1.0]], &dev);
+    let x = Tensor::<2>::from_floats([[1.0, 2.0]], &dev);
+    let target = Tensor::<2>::from_floats([[1.0]], &dev);
 
     // Fixed weights so the gradients are deterministic and hand-checkable.
-    let w1 = Tensor::<B, 2>::from_floats([[0.1, 0.2], [0.3, 0.4]], &dev).require_grad();
-    let w2 = Tensor::<B, 2>::from_floats([[0.5], [0.6]], &dev).require_grad();
+    let w1 = Tensor::<2>::from_floats([[0.1, 0.2], [0.3, 0.4]], &dev).require_grad();
+    let w2 = Tensor::<2>::from_floats([[0.5], [0.6]], &dev).require_grad();
 
     // Forward pass.
     let h_pre = x.matmul(w1.clone()); // [[0.7, 1.0]]
