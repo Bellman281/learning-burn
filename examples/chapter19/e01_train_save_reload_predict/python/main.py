@@ -19,7 +19,7 @@ for _ in range(3000):
     optim.step()
 
 # --- save ---
-path = os.path.join(tempfile.gettempdir(), "burn_ch13_model.pt")
+path = os.path.join(tempfile.gettempdir(), "burn_ch19_model.pt")
 torch.save(model.state_dict(), path)
 print(f'saved weights to "{path}"')
 

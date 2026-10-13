@@ -1,4 +1,4 @@
-# Serialization Precision and File Overhead (Example 13.2)
+# Serialization Precision and File Overhead (Example 19.2)
 
 A practical investigation into serialization precision in **Burn** and **PyTorch**, highlighting the trade-offs between float precision ($f32$ vs $f16$), inference accuracy, and actual file sizes on disk.
 
