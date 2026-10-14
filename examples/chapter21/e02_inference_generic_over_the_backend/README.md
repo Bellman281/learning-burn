@@ -1,13 +1,11 @@
 # Backend-Agnostic Inference (Example 21.2)
 
-An architectural demonstration showing how **Burn**'s type system decouples model logic from execution hardware, allowing the exact same code to run seamlessly on CPU, GPU, or embedded microcontrollers.
+A demonstration showing how **Burn** decouples model logic from execution hardware, allowing the exact same code to run on CPU, GPU, or embedded microcontrollers.
 
 ## The Core Concept
-In PyTorch, device allocation (such as `.to("cuda")` or `.to("cpu")`) is handled via runtime values. This makes it easy to write code that compiles perfectly but crashes hours into a training job with a `RuntimeError` due to a device mismatch.
+In PyTorch, the device (`torch.device("cuda")`, `"cpu"`) is a runtime value. Since Burn 0.22 the same is true in Burn: the model and the inference function take a `&Device`, and the backend behind it is chosen when the program runs (`Device::flex()`, `Device::wgpu(...)`, `Device::cuda(0)`, ...). The tensor type carries only the rank and kind (`Tensor<2>`), never the backend.
 
-In Burn, the target hardware is represented as a compile-time **Type Parameter** (`B: Backend`). 
-
-## Key Architectural Advantages
-- **Compile-Time Device Safety:** Because the backend is encoded directly into the Tensor's Rust type, you physically cannot mix tensors from different hardware devices. Mismatches are caught immediately by the compiler.
-- **Write Once, Run Anywhere:** Your model code, forward passes, and inference loops do not care about the hardware. You write the logic generically and select the concrete backend (e.g., CPU `NdArray`, GPU `Wgpu`, or an embedded `no_std` backend) at the call site.
-- **No-Risk Scaling:** This trait-based abstraction allows developers to build, test, and debug models on a local CPU laptop and deploy the exact same compiled binary onto a high-performance GPU cluster or a resource-constrained embedded chip.
+## What is decided when
+- **Run time:** which device a call uses. `run_inference(&Device::flex())` and `run_inference(&gpu)` are the same compiled function.
+- **Compile time:** which backends exist in the binary at all. Each backend sits behind a Cargo feature (`flex`, `wgpu`, `cuda`, ...); only the enabled ones are compiled in. On a microcontroller you enable `flex` alone, with Burn's default features off, so the firmware carries one pure-Rust CPU backend and nothing else.
+- **Device mismatches** (a tensor on one backend meeting a tensor on another) are therefore caught at run time, as in PyTorch, not by the compiler.
