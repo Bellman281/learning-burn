@@ -4,14 +4,12 @@ use axum::Router;
 use axum::extract::{Json, State};
 use axum::http::StatusCode;
 use axum::routing::{get, post};
-use burn::backend::NdArray;
 use burn::module::Module;
 use burn::nn::conv::{Conv2d, Conv2dConfig};
 use burn::nn::pool::{AdaptiveAvgPool2d, AdaptiveAvgPool2dConfig, MaxPool2d, MaxPool2dConfig};
 use burn::nn::{Linear, LinearConfig, PaddingConfig2d};
 use burn::tensor::activation::relu;
-use burn::tensor::backend::Backend;
-use burn::tensor::{Tensor, TensorData};
+use burn::tensor::{Device, Tensor, TensorData};
 use burn_store::{ModuleSnapshot, PyTorchToBurnAdapter, SafetensorsStore};
 use serde::{Deserialize, Serialize};
 
@@ -62,16 +60,16 @@ fn make_image(class: usize, rng: &mut Lcg) -> Vec<f32> {
 
 // --- the model: Chapter 13's CNN, weights from Chapter 19's safetensors file ---
 #[derive(Module, Debug)]
-struct SmallCnn<B: Backend> {
-    conv1: Conv2d<B>,
+struct SmallCnn {
+    conv1: Conv2d,
     pool: MaxPool2d,
-    conv2: Conv2d<B>,
+    conv2: Conv2d,
     gap: AdaptiveAvgPool2d,
-    head: Linear<B>,
+    head: Linear,
 }
 
-impl<B: Backend> SmallCnn<B> {
-    fn new(device: &B::Device) -> Self {
+impl SmallCnn {
+    fn new(device: &Device) -> Self {
         let same = PaddingConfig2d::Explicit(1, 1, 1, 1);
         Self {
             conv1: Conv2dConfig::new([1, 4], [3, 3])
@@ -86,7 +84,7 @@ impl<B: Backend> SmallCnn<B> {
         }
     }
 
-    fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 2> {
+    fn forward(&self, x: Tensor<4>) -> Tensor<2> {
         let x = self.pool.forward(relu(self.conv1.forward(x)));
         let x = relu(self.conv2.forward(x));
         let [batch, channels, _, _] = x.dims();
@@ -100,7 +98,7 @@ const WEIGHTS: &str = concat!(
     "/../../../chapter19/weights/small_cnn.safetensors"
 );
 
-fn load_model<B: Backend>(device: &B::Device) -> SmallCnn<B> {
+fn load_model(device: &Device) -> SmallCnn {
     let mut store = SafetensorsStore::from_file(WEIGHTS)
         .with_from_adapter(PyTorchToBurnAdapter)
         .with_key_remapping(r"^features\.0\.(.+)$", "conv1.$1")
@@ -123,7 +121,7 @@ struct PredictResponse {
     logits: Vec<f32>,
 }
 
-type Shared = Arc<SmallCnn<NdArray>>; // loaded once, shared by every request
+type Shared = Arc<SmallCnn>; // loaded once, shared by every request
 
 async fn predict(
     State(model): State<Shared>,
@@ -133,10 +131,9 @@ async fn predict(
         let msg = format!("expected {} pixels, got {}", SIZE * SIZE, req.pixels.len());
         return Err((StatusCode::UNPROCESSABLE_ENTITY, msg));
     }
-    let device = Default::default();
-    let x =
-        Tensor::<NdArray, 4>::from_data(TensorData::new(req.pixels, [1, 1, SIZE, SIZE]), &device);
-    let logits: Vec<f32> = model.forward(x).into_data().to_vec().unwrap();
+    let device = Device::flex();
+    let x = Tensor::<4>::from_data(TensorData::new(req.pixels, [1, 1, SIZE, SIZE]), &device);
+    let logits: Vec<f32> = model.forward(x).into_data().try_to_vec().unwrap();
     let class = (0..logits.len())
         .max_by(|&a, &b| logits[a].total_cmp(&logits[b]))
         .unwrap();
@@ -153,7 +150,7 @@ fn app(model: Shared) -> Router {
 /// Starts the server on a free port, then acts as its own client.
 /// Returns (health, classes for the 8 test images, status for a bad request).
 async fn build() -> (String, Vec<usize>, u16) {
-    let model: Shared = Arc::new(load_model::<NdArray>(&Default::default()));
+    let model: Shared = Arc::new(load_model(&Device::flex()));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}", listener.local_addr().unwrap());
     tokio::spawn(async move { axum::serve(listener, app(model)).await.unwrap() });

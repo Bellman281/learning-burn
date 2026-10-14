@@ -1,13 +1,11 @@
 use std::time::Instant;
 
-use burn::backend::{Flex, NdArray};
 use burn::module::Module;
 use burn::nn::conv::{Conv2d, Conv2dConfig};
 use burn::nn::pool::{AdaptiveAvgPool2d, AdaptiveAvgPool2dConfig, MaxPool2d, MaxPool2dConfig};
 use burn::nn::{Linear, LinearConfig, PaddingConfig2d};
 use burn::tensor::activation::relu;
-use burn::tensor::backend::Backend;
-use burn::tensor::{Tensor, TensorData};
+use burn::tensor::{Device, Tensor, TensorData};
 use burn_store::{ModuleSnapshot, PyTorchToBurnAdapter, SafetensorsStore};
 
 const SIZE: usize = 12;
@@ -57,16 +55,16 @@ fn make_image(class: usize, rng: &mut Lcg) -> Vec<f32> {
 
 // --- the model: Chapter 13's CNN, weights from Chapter 19's safetensors file ---
 #[derive(Module, Debug)]
-struct SmallCnn<B: Backend> {
-    conv1: Conv2d<B>,
+struct SmallCnn {
+    conv1: Conv2d,
     pool: MaxPool2d,
-    conv2: Conv2d<B>,
+    conv2: Conv2d,
     gap: AdaptiveAvgPool2d,
-    head: Linear<B>,
+    head: Linear,
 }
 
-impl<B: Backend> SmallCnn<B> {
-    fn new(device: &B::Device) -> Self {
+impl SmallCnn {
+    fn new(device: &Device) -> Self {
         let same = PaddingConfig2d::Explicit(1, 1, 1, 1);
         Self {
             conv1: Conv2dConfig::new([1, 4], [3, 3])
@@ -81,7 +79,7 @@ impl<B: Backend> SmallCnn<B> {
         }
     }
 
-    fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 2> {
+    fn forward(&self, x: Tensor<4>) -> Tensor<2> {
         let x = self.pool.forward(relu(self.conv1.forward(x)));
         let x = relu(self.conv2.forward(x));
         let [batch, channels, _, _] = x.dims();
@@ -95,7 +93,7 @@ const WEIGHTS: &str = concat!(
     "/../../../chapter19/weights/small_cnn.safetensors"
 );
 
-fn load_model<B: Backend>(device: &B::Device) -> SmallCnn<B> {
+fn load_model(device: &Device) -> SmallCnn {
     let mut store = SafetensorsStore::from_file(WEIGHTS)
         .with_from_adapter(PyTorchToBurnAdapter)
         .with_key_remapping(r"^features\.0\.(.+)$", "conv1.$1")
@@ -107,18 +105,17 @@ fn load_model<B: Backend>(device: &B::Device) -> SmallCnn<B> {
 }
 
 // n test images (cycling through the classes), as one tensor [n, 1, 12, 12].
-fn images<B: Backend>(n: usize, device: &B::Device) -> Tensor<B, 4> {
+fn images(n: usize, device: &Device) -> Tensor<4> {
     let mut rng = Lcg(7);
     let pixels: Vec<f32> = (0..n).flat_map(|i| make_image(i % 4, &mut rng)).collect();
     Tensor::from_data(TensorData::new(pixels, [n, 1, SIZE, SIZE]), device)
 }
 
-// Written once, generic over the backend (see Chapter 21). Returns (logits, median ms).
-fn run<B: Backend>(n: usize) -> (Vec<f32>, f64) {
-    let device = Default::default();
-    let model = load_model::<B>(&device);
-    let x = images::<B>(n, &device);
-    let logits: Vec<f32> = model.forward(x.clone()).into_data().to_vec().unwrap(); // warm-up too
+// Written once, for whichever device it is given (see Chapter 21). Returns (logits, median ms).
+fn run(device: &Device, n: usize) -> (Vec<f32>, f64) {
+    let model = load_model(device);
+    let x = images(n, device);
+    let logits: Vec<f32> = model.forward(x.clone()).into_data().try_to_vec().unwrap(); // warm-up too
     let mut times: Vec<f64> = (0..30)
         .map(|_| {
             let t = Instant::now();
@@ -137,20 +134,22 @@ fn max_diff(a: &[f32], b: &[f32]) -> f32 {
         .fold(0.0, f32::max)
 }
 
-/// Returns (rows of (backend, ms for 256 images, max |diff vs NdArray|)).
+/// Returns (rows of (backend, ms for 256 images, max |diff vs Flex|)).
 fn build() -> Vec<(&'static str, f64, f32)> {
     let n = 256;
-    let (reference, ms_nd) = run::<NdArray>(n);
-    let (flex, ms_flex) = run::<Flex>(n);
+    let (reference, ms_flex) = run(&Device::flex(), n);
+    #[allow(deprecated)] // NdArray is deprecated in 0.22: kept as the baseline it replaces
+    let (nd, ms_nd) = run(&Device::ndarray(), n);
     #[allow(unused_mut)]
     let mut rows = vec![
-        ("NdArray", ms_nd, 0.0),
-        ("Flex", ms_flex, max_diff(&flex, &reference)),
+        ("Flex", ms_flex, 0.0),
+        ("NdArray", ms_nd, max_diff(&nd, &reference)),
     ];
     // A GPU: `cargo run --release --features gpu` (Metal on a Mac, Vulkan/DX12 elsewhere).
     #[cfg(feature = "gpu")]
     {
-        let (gpu, ms_gpu) = run::<burn::backend::Wgpu>(n);
+        let gpu_device = Device::wgpu(burn::tensor::DeviceKind::DefaultDevice);
+        let (gpu, ms_gpu) = run(&gpu_device, n);
         rows.push(("Wgpu", ms_gpu, max_diff(&gpu, &reference)));
     }
     rows
@@ -158,7 +157,7 @@ fn build() -> Vec<(&'static str, f64, f32)> {
 
 fn main() {
     println!("the same forward pass, 256 images, on each backend");
-    println!("backend   ms / batch   max |diff vs NdArray|");
+    println!("backend   ms / batch   max |diff vs Flex|");
     for (name, ms, diff) in build() {
         println!("{name:<8}  {ms:>10.3}   {diff:e}");
     }

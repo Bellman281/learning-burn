@@ -1,13 +1,11 @@
 use std::time::Instant;
 
-use burn::backend::NdArray;
 use burn::module::Module;
 use burn::nn::conv::{Conv2d, Conv2dConfig};
 use burn::nn::pool::{AdaptiveAvgPool2d, AdaptiveAvgPool2dConfig, MaxPool2d, MaxPool2dConfig};
 use burn::nn::{Linear, LinearConfig, PaddingConfig2d};
 use burn::tensor::activation::relu;
-use burn::tensor::backend::Backend;
-use burn::tensor::{Tensor, TensorData};
+use burn::tensor::{Device, Tensor, TensorData};
 use burn_store::{ModuleSnapshot, PyTorchToBurnAdapter, SafetensorsStore};
 
 const SIZE: usize = 12;
@@ -57,16 +55,16 @@ fn make_image(class: usize, rng: &mut Lcg) -> Vec<f32> {
 
 // --- the model: Chapter 13's CNN, weights from Chapter 19's safetensors file ---
 #[derive(Module, Debug)]
-struct SmallCnn<B: Backend> {
-    conv1: Conv2d<B>,
+struct SmallCnn {
+    conv1: Conv2d,
     pool: MaxPool2d,
-    conv2: Conv2d<B>,
+    conv2: Conv2d,
     gap: AdaptiveAvgPool2d,
-    head: Linear<B>,
+    head: Linear,
 }
 
-impl<B: Backend> SmallCnn<B> {
-    fn new(device: &B::Device) -> Self {
+impl SmallCnn {
+    fn new(device: &Device) -> Self {
         let same = PaddingConfig2d::Explicit(1, 1, 1, 1);
         Self {
             conv1: Conv2dConfig::new([1, 4], [3, 3])
@@ -81,7 +79,7 @@ impl<B: Backend> SmallCnn<B> {
         }
     }
 
-    fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 2> {
+    fn forward(&self, x: Tensor<4>) -> Tensor<2> {
         let x = self.pool.forward(relu(self.conv1.forward(x)));
         let x = relu(self.conv2.forward(x));
         let [batch, channels, _, _] = x.dims();
@@ -95,7 +93,7 @@ const WEIGHTS: &str = concat!(
     "/../../../chapter19/weights/small_cnn.safetensors"
 );
 
-fn load_model<B: Backend>(device: &B::Device) -> SmallCnn<B> {
+fn load_model(device: &Device) -> SmallCnn {
     let mut store = SafetensorsStore::from_file(WEIGHTS)
         .with_from_adapter(PyTorchToBurnAdapter)
         .with_key_remapping(r"^features\.0\.(.+)$", "conv1.$1")
@@ -107,16 +105,16 @@ fn load_model<B: Backend>(device: &B::Device) -> SmallCnn<B> {
 }
 
 // n test images (cycling through the classes), as one tensor [n, 1, 12, 12].
-fn images<B: Backend>(n: usize, device: &B::Device) -> Tensor<B, 4> {
+fn images(n: usize, device: &Device) -> Tensor<4> {
     let mut rng = Lcg(7);
     let pixels: Vec<f32> = (0..n).flat_map(|i| make_image(i % 4, &mut rng)).collect();
     Tensor::from_data(TensorData::new(pixels, [n, 1, SIZE, SIZE]), device)
 }
 
 /// Median wall time of one forward pass over a batch of `n`, in microseconds.
-fn time_batch(model: &SmallCnn<NdArray>, n: usize) -> f64 {
-    let device = Default::default();
-    let x = images::<NdArray>(n, &device);
+fn time_batch(model: &SmallCnn, n: usize) -> f64 {
+    let device = Device::flex();
+    let x = images(n, &device);
     let reps = (4096 / n).clamp(8, 400);
     let mut times: Vec<f64> = (0..reps)
         .map(|_| {
@@ -132,8 +130,8 @@ fn time_batch(model: &SmallCnn<NdArray>, n: usize) -> f64 {
 
 /// Returns (rows of (batch, us per batch, images per second), max |batched - one by one|).
 fn build() -> (Vec<(usize, f64, f64)>, f32) {
-    let device = Default::default();
-    let model = load_model::<NdArray>(&device);
+    let device = Device::flex();
+    let model = load_model(&device);
 
     let rows = [1, 4, 16, 64, 256]
         .iter()
@@ -145,14 +143,14 @@ fn build() -> (Vec<(usize, f64, f64)>, f32) {
 
     // Batching must not change the answers: 64 at once vs 64 one at a time.
     let all: Vec<f32> = model
-        .forward(images::<NdArray>(64, &device))
+        .forward(images(64, &device))
         .into_data()
-        .to_vec()
+        .try_to_vec()
         .unwrap();
     let one_by_one: Vec<f32> = (0..64)
         .flat_map(|i| {
-            let x = images::<NdArray>(64, &device).slice([i..i + 1]);
-            model.forward(x).into_data().to_vec::<f32>().unwrap()
+            let x = images(64, &device).slice([i..i + 1]);
+            model.forward(x).into_data().try_to_vec::<f32>().unwrap()
         })
         .collect();
     let diff = all

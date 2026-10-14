@@ -1,6 +1,4 @@
-use burn::backend::NdArray;
-use burn::tensor::backend::Backend;
-use burn::tensor::{Tensor, TensorData};
+use burn::tensor::{Device, Tensor, TensorData};
 
 // The model is NOT written here. build.rs generated it from the ONNX file.
 #[allow(dead_code)] // generated code includes loaders this example does not use
@@ -55,7 +53,7 @@ fn make_image(class: usize, rng: &mut Lcg) -> Vec<f32> {
 }
 
 // The first 8 test images of Chapter 13 (seed 7), as one batch.
-fn test_images<B: Backend>(device: &B::Device) -> Tensor<B, 4> {
+fn test_images(device: &Device) -> Tensor<4> {
     let mut rng = Lcg(7);
     let pixels: Vec<f32> = (0..8).flat_map(|i| make_image(i % 4, &mut rng)).collect();
     Tensor::from_data(TensorData::new(pixels, [8, 1, SIZE, SIZE]), device)
@@ -90,17 +88,17 @@ fn max_diff(a: &[f32], b: &[f32]) -> f32 {
 }
 
 /// Returns (generated source lines, weights file bytes, predictions, max |Burn - PyTorch|).
-fn build() -> (usize, u64, Vec<i64>, f32) {
-    let device = Default::default();
+fn build() -> (usize, u64, Vec<i32>, f32) {
+    let device = Device::flex();
     let generated = concat!(env!("OUT_DIR"), "/model/small_cnn.rs");
     let weights = concat!(env!("OUT_DIR"), "/model/small_cnn.bpk");
     let lines = std::fs::read_to_string(generated).unwrap().lines().count();
     let bytes = std::fs::metadata(weights).unwrap().len();
 
-    let model: Model<NdArray> = Model::from_file(weights, &device);
+    let model = Model::from_file(weights, &device);
     let logits = model.forward(test_images(&device));
-    let predicted: Vec<i64> = logits.clone().argmax(1).into_data().to_vec().unwrap();
-    let values: Vec<f32> = logits.into_data().to_vec().unwrap();
+    let predicted: Vec<i32> = logits.clone().argmax(1).into_data().try_to_vec().unwrap();
+    let values: Vec<f32> = logits.into_data().try_to_vec().unwrap();
     (lines, bytes, predicted, max_diff(&values, &reference()))
 }
 

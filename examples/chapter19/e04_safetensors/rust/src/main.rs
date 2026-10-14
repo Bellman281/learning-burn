@@ -1,11 +1,9 @@
-use burn::backend::NdArray;
 use burn::module::Module;
 use burn::nn::conv::{Conv2d, Conv2dConfig};
 use burn::nn::pool::{AdaptiveAvgPool2d, AdaptiveAvgPool2dConfig, MaxPool2d, MaxPool2dConfig};
 use burn::nn::{Linear, LinearConfig, PaddingConfig2d};
 use burn::tensor::activation::relu;
-use burn::tensor::backend::Backend;
-use burn::tensor::{Tensor, TensorData};
+use burn::tensor::{Device, Tensor, TensorData};
 use burn_store::{ModuleSnapshot, PyTorchToBurnAdapter, SafetensorsStore};
 
 const SIZE: usize = 12;
@@ -55,16 +53,16 @@ fn make_image(class: usize, rng: &mut Lcg) -> Vec<f32> {
 
 // --- the Burn model: Chapter 13's CNN, with Burn-style field names ---
 #[derive(Module, Debug)]
-struct SmallCnn<B: Backend> {
-    conv1: Conv2d<B>,
+struct SmallCnn {
+    conv1: Conv2d,
     pool: MaxPool2d,
-    conv2: Conv2d<B>,
+    conv2: Conv2d,
     gap: AdaptiveAvgPool2d,
-    head: Linear<B>,
+    head: Linear,
 }
 
-impl<B: Backend> SmallCnn<B> {
-    fn new(device: &B::Device) -> Self {
+impl SmallCnn {
+    fn new(device: &Device) -> Self {
         let same = PaddingConfig2d::Explicit(1, 1, 1, 1);
         Self {
             conv1: Conv2dConfig::new([1, 4], [3, 3])
@@ -79,7 +77,7 @@ impl<B: Backend> SmallCnn<B> {
         }
     }
 
-    fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 2> {
+    fn forward(&self, x: Tensor<4>) -> Tensor<2> {
         let x = self.pool.forward(relu(self.conv1.forward(x)));
         let x = relu(self.conv2.forward(x));
         let [batch, channels, _, _] = x.dims();
@@ -89,7 +87,7 @@ impl<B: Backend> SmallCnn<B> {
 }
 
 // The first 8 test images of Chapter 13 (seed 7), as one batch.
-fn test_images<B: Backend>(device: &B::Device) -> Tensor<B, 4> {
+fn test_images(device: &Device) -> Tensor<4> {
     let mut rng = Lcg(7);
     let pixels: Vec<f32> = (0..8).flat_map(|i| make_image(i % 4, &mut rng)).collect();
     Tensor::from_data(TensorData::new(pixels, [8, 1, SIZE, SIZE]), device)
@@ -137,26 +135,26 @@ fn store() -> SafetensorsStore {
 }
 
 /// Returns (error without the adapter, head weight shape, predictions, max |Burn - PyTorch|).
-fn build() -> (String, [usize; 2], Vec<i64>, f32) {
-    let device = Default::default();
+fn build() -> (String, [usize; 2], Vec<i32>, f32) {
+    let device = Device::flex();
 
     // 1. Names mapped, but no adapter: safetensors is just named arrays, in PyTorch's layout.
-    let mut model = SmallCnn::<NdArray>::new(&device);
+    let mut model = SmallCnn::new(&device);
     let error = match model.load_from(&mut store()) {
         Ok(_) => "loaded?!".to_string(),
         Err(e) => e.to_string(),
     };
 
     // 2. With the adapter that turns PyTorch's layout into Burn's.
-    let mut model = SmallCnn::<NdArray>::new(&device);
+    let mut model = SmallCnn::new(&device);
     model
         .load_from(&mut store().with_from_adapter(PyTorchToBurnAdapter))
         .expect("load safetensors");
 
     let shape = model.head.weight.dims();
     let logits = model.forward(test_images(&device));
-    let predicted: Vec<i64> = logits.clone().argmax(1).into_data().to_vec().unwrap();
-    let values: Vec<f32> = logits.into_data().to_vec().unwrap();
+    let predicted: Vec<i32> = logits.clone().argmax(1).into_data().try_to_vec().unwrap();
+    let values: Vec<f32> = logits.into_data().try_to_vec().unwrap();
     (error, shape, predicted, max_diff(&values, &reference()))
 }
 

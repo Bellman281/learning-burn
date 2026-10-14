@@ -1,6 +1,6 @@
-# Example 20.4 — Backends
+# Example 20.4 — Backends (devices)
 
-The same generic forward pass on `NdArray` and `Flex`, and on `Wgpu` with `--features gpu`.
+One forward-pass function, compiled once and called with a different `Device` each time: `Device::flex()`, the deprecated `Device::ndarray()` (kept as the baseline it replaces), and `Device::wgpu(DeviceKind::DefaultDevice)` with `--features gpu`.
 
 ## Files
 
@@ -21,4 +21,4 @@ cargo run --release -p c20e4 --features gpu   # adds the Wgpu row (needs a GPU)
 
 ## Parity
 
-All backends' logits agree with NdArray's to within 1e-4.
+All devices' logits agree with Flex's to within 1e-4.

@@ -1,6 +1,6 @@
 # Example 19.6 — Convert Once
 
-A one-off converter from the PyTorch file to a Burn record, and a loader that needs only `burn`.
+A one-off converter from the PyTorch file to a burnpack (`.bpk`) file, and a loader that needs only `burn`.
 
 ## Files
 
