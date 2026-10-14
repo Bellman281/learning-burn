@@ -4,10 +4,10 @@ A `ResidualBlock` -- conv-BN-ReLU-conv-BN plus a skip, with a 1x1 conv + BN proj
 
 ```rust
 #[derive(Module, Debug)]
-struct ResidualBlock<B: Backend> {
-    a: ConvBn<B>,
-    b: ConvBn<B>,
-    project: Option<ConvBn<B>>, // 1x1 conv + BN, only when the shape changes
+struct ResidualBlock {
+    a: ConvBn,
+    b: ConvBn,
+    project: Option<ConvBn>, // 1x1 conv + BN, only when the shape changes
 }
 ```
 
@@ -29,4 +29,4 @@ pytest examples/chapter13/e06_resnet/python/main.py      # the Python parity tes
 
 ## Parity
 
-The 16 logits match PyTorch to 1e-5 in eval mode (`model.eval()` / Burn's inner backend) and in training mode (`model.train()` / `Autodiff`). PyTorch counts 5,020 parameters; Burn's `num_params()` reports 5,164, because it also counts the 144 BatchNorm running statistics that PyTorch keeps as buffers.
+The 16 logits match PyTorch to 1e-5 in eval mode (`model.eval()` / Burn's `model.valid()`) and in training mode (`model.train()` / the model on `Device::flex().autodiff()`). PyTorch counts 5,020 parameters; Burn's `num_params()` reports 5,164, because it also counts the 144 BatchNorm running statistics that PyTorch keeps as buffers.

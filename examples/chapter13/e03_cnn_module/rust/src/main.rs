@@ -1,13 +1,10 @@
-use burn::backend::NdArray;
 use burn::module::{Module, Param};
 use burn::nn::conv::{Conv2d, Conv2dConfig};
 use burn::nn::pool::{AdaptiveAvgPool2d, AdaptiveAvgPool2dConfig, MaxPool2d, MaxPool2dConfig};
 use burn::nn::{Linear, LinearConfig, PaddingConfig2d};
 use burn::tensor::activation::relu;
-use burn::tensor::backend::Backend;
-use burn::tensor::{Tensor, TensorData};
+use burn::tensor::{Device, Tensor, TensorData};
 
-type MyBackend = NdArray;
 const SIZE: usize = 12;
 
 // --- the data: 12x12 "shapes", generated in code (identical in main.py) ---
@@ -55,16 +52,16 @@ fn make_image(class: usize, rng: &mut Lcg) -> Vec<f32> {
 
 // --- the model ---
 #[derive(Module, Debug)]
-struct SmallCnn<B: Backend> {
-    conv1: Conv2d<B>,       // 1 -> 4 channels, 3x3
+struct SmallCnn {
+    conv1: Conv2d,          // 1 -> 4 channels, 3x3
     pool: MaxPool2d,        // 12x12 -> 6x6
-    conv2: Conv2d<B>,       // 4 -> 8 channels, 3x3
+    conv2: Conv2d,          // 4 -> 8 channels, 3x3
     gap: AdaptiveAvgPool2d, // 6x6 -> 1x1: one number per channel
-    head: Linear<B>,        // 8 -> 4 classes
+    head: Linear,           // 8 -> 4 classes
 }
 
-impl<B: Backend> SmallCnn<B> {
-    fn new(device: &B::Device) -> Self {
+impl SmallCnn {
+    fn new(device: &Device) -> Self {
         let same = PaddingConfig2d::Explicit(1, 1, 1, 1); // keep 12x12 as 12x12
         Self {
             conv1: Conv2dConfig::new([1, 4], [3, 3])
@@ -79,7 +76,7 @@ impl<B: Backend> SmallCnn<B> {
         }
     }
 
-    fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 2> {
+    fn forward(&self, x: Tensor<4>) -> Tensor<2> {
         let x = self.pool.forward(relu(self.conv1.forward(x))); // [B, 4, 6, 6]
         let x = relu(self.conv2.forward(x)); //                    [B, 8, 6, 6]
         let [batch, channels, _, _] = x.dims();
@@ -88,7 +85,7 @@ impl<B: Backend> SmallCnn<B> {
     }
 
     // Replace the random init with fixed numbers, so main.py can use the SAME weights.
-    fn with_fixed_weights(mut self, device: &B::Device) -> Self {
+    fn with_fixed_weights(mut self, device: &Device) -> Self {
         let det = |n: usize, fan_in: usize, phase: f64| -> Vec<f32> {
             (0..n)
                 .map(|i| ((i as f64 * 2.3 + phase).sin() / (fan_in as f64).sqrt()) as f32)
@@ -107,38 +104,34 @@ impl<B: Backend> SmallCnn<B> {
     }
 }
 
-fn param<B: Backend, const D: usize>(
-    v: Vec<f32>,
-    shape: [usize; D],
-    device: &B::Device,
-) -> Param<Tensor<B, D>> {
+fn param<const D: usize>(v: Vec<f32>, shape: [usize; D], device: &Device) -> Param<Tensor<D>> {
     Param::from_tensor(Tensor::from_data(TensorData::new(v, shape), device))
 }
 
 // The same classifier with no convolutions: flatten the image, two dense layers.
 #[derive(Module, Debug)]
-struct Mlp<B: Backend> {
-    l1: Linear<B>,
-    l2: Linear<B>,
+struct Mlp {
+    l1: Linear,
+    l2: Linear,
 }
 
 /// Returns (logits for one image of each class, cnn params, mlp params).
 fn build() -> (Vec<f32>, usize, usize) {
-    let device = Default::default();
+    let device = Device::flex();
     let mut rng = Lcg(42);
     let images: Vec<f32> = (0..4).flat_map(|c| make_image(c, &mut rng)).collect();
-    let x = Tensor::<MyBackend, 4>::from_data(TensorData::new(images, [4, 1, SIZE, SIZE]), &device);
+    let x = Tensor::<4>::from_data(TensorData::new(images, [4, 1, SIZE, SIZE]), &device);
 
-    let model = SmallCnn::<MyBackend>::new(&device).with_fixed_weights(&device);
+    let model = SmallCnn::new(&device).with_fixed_weights(&device);
     let logits = model.forward(x);
     println!("logits shape = {:?}", logits.dims()); // [4, 4]
 
-    let mlp = Mlp::<MyBackend> {
+    let mlp = Mlp {
         l1: LinearConfig::new(SIZE * SIZE, 32).init(&device),
         l2: LinearConfig::new(32, 4).init(&device),
     };
     (
-        logits.into_data().to_vec().unwrap(),
+        logits.into_data().try_to_vec().unwrap(),
         model.num_params(),
         mlp.num_params(),
     )

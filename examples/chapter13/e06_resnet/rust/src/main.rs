@@ -1,14 +1,9 @@
-use burn::backend::{Autodiff, NdArray};
-use burn::module::{AutodiffModule, Module, Param, RunningState};
+use burn::module::{Module, Param, RunningState};
 use burn::nn::conv::{Conv2d, Conv2dConfig};
 use burn::nn::pool::{AdaptiveAvgPool2d, AdaptiveAvgPool2dConfig};
 use burn::nn::{BatchNorm, BatchNormConfig, Linear, LinearConfig, PaddingConfig2d};
 use burn::tensor::activation::relu;
-use burn::tensor::backend::Backend;
-use burn::tensor::{Tensor, TensorData};
-
-type Eval = NdArray; //            BatchNorm uses its running statistics
-type Train = Autodiff<NdArray>; // BatchNorm uses the batch's statistics
+use burn::tensor::{Device, Tensor, TensorData};
 
 const SIZE: usize = 12;
 
@@ -65,23 +60,17 @@ impl Filler {
             .map(|i| (offset + scale * (i as f64 * step + p).sin()) as f32)
             .collect()
     }
-    fn tensor<B: Backend, const D: usize>(
+    fn tensor<const D: usize>(
         &mut self,
         shape: [usize; D],
         fan_in: usize,
-        device: &B::Device,
-    ) -> Tensor<B, D> {
+        device: &Device,
+    ) -> Tensor<D> {
         let n = shape.iter().product();
         let v = self.wave(n, 2.3, 1.0 / (fan_in as f64).sqrt(), 0.0);
         Tensor::from_data(TensorData::new(v, shape), device)
     }
-    fn vector<B: Backend>(
-        &mut self,
-        n: usize,
-        scale: f64,
-        offset: f64,
-        d: &B::Device,
-    ) -> Tensor<B, 1> {
+    fn vector(&mut self, n: usize, scale: f64, offset: f64, d: &Device) -> Tensor<1> {
         Tensor::from_data(TensorData::new(self.wave(n, 1.7, scale, offset), [n]), d)
     }
 }
@@ -89,13 +78,13 @@ impl Filler {
 // --- the building blocks ---
 // conv (no bias: the BatchNorm's beta does that job) followed by BatchNorm
 #[derive(Module, Debug)]
-struct ConvBn<B: Backend> {
-    conv: Conv2d<B>,
-    bn: BatchNorm<B>,
+struct ConvBn {
+    conv: Conv2d,
+    bn: BatchNorm,
 }
 
-impl<B: Backend> ConvBn<B> {
-    fn new(c_in: usize, c_out: usize, k: usize, stride: usize, device: &B::Device) -> Self {
+impl ConvBn {
+    fn new(c_in: usize, c_out: usize, k: usize, stride: usize, device: &Device) -> Self {
         let p = k / 2; // 3x3 -> padding 1, 1x1 -> padding 0
         Self {
             conv: Conv2dConfig::new([c_in, c_out], [k, k])
@@ -107,11 +96,11 @@ impl<B: Backend> ConvBn<B> {
         }
     }
 
-    fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
+    fn forward(&self, x: Tensor<4>) -> Tensor<4> {
         self.bn.forward(self.conv.forward(x))
     }
 
-    fn fill(&mut self, f: &mut Filler, device: &B::Device) {
+    fn fill(&mut self, f: &mut Filler, device: &Device) {
         let [c_out, c_in, k, _] = self.conv.weight.dims();
         self.conv.weight = Param::from_tensor(f.tensor([c_out, c_in, k, k], c_in * k * k, device));
         self.bn.gamma = Param::from_tensor(f.vector(c_out, 0.1, 1.0, device));
@@ -123,14 +112,14 @@ impl<B: Backend> ConvBn<B> {
 
 // y = relu( F(x) + skip(x) ),  F = conv-BN-relu-conv-BN
 #[derive(Module, Debug)]
-struct ResidualBlock<B: Backend> {
-    a: ConvBn<B>,
-    b: ConvBn<B>,
-    project: Option<ConvBn<B>>, // 1x1 conv + BN, only when the shape changes
+struct ResidualBlock {
+    a: ConvBn,
+    b: ConvBn,
+    project: Option<ConvBn>, // 1x1 conv + BN, only when the shape changes
 }
 
-impl<B: Backend> ResidualBlock<B> {
-    fn new(c_in: usize, c_out: usize, stride: usize, device: &B::Device) -> Self {
+impl ResidualBlock {
+    fn new(c_in: usize, c_out: usize, stride: usize, device: &Device) -> Self {
         let project = if c_in != c_out || stride != 1 {
             Some(ConvBn::new(c_in, c_out, 1, stride, device))
         } else {
@@ -143,7 +132,7 @@ impl<B: Backend> ResidualBlock<B> {
         }
     }
 
-    fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
+    fn forward(&self, x: Tensor<4>) -> Tensor<4> {
         let skip = match &self.project {
             Some(p) => p.forward(x.clone()),
             None => x.clone(), // the identity: x itself
@@ -152,7 +141,7 @@ impl<B: Backend> ResidualBlock<B> {
         relu(fx + skip)
     }
 
-    fn fill(&mut self, f: &mut Filler, device: &B::Device) {
+    fn fill(&mut self, f: &mut Filler, device: &Device) {
         self.a.fill(f, device);
         self.b.fill(f, device);
         if let Some(p) = self.project.as_mut() {
@@ -162,16 +151,16 @@ impl<B: Backend> ResidualBlock<B> {
 }
 
 #[derive(Module, Debug)]
-struct SmallResNet<B: Backend> {
-    stem: ConvBn<B>,          // 1 -> 8,  12x12
-    block1: ResidualBlock<B>, // 8 -> 8,  12x12, identity skip
-    block2: ResidualBlock<B>, // 8 -> 16, 6x6, stride 2, projected skip
-    gap: AdaptiveAvgPool2d,   // 6x6 -> 1x1
-    head: Linear<B>,          // 16 -> 4 classes
+struct SmallResNet {
+    stem: ConvBn,           // 1 -> 8,  12x12
+    block1: ResidualBlock,  // 8 -> 8,  12x12, identity skip
+    block2: ResidualBlock,  // 8 -> 16, 6x6, stride 2, projected skip
+    gap: AdaptiveAvgPool2d, // 6x6 -> 1x1
+    head: Linear,           // 16 -> 4 classes
 }
 
-impl<B: Backend> SmallResNet<B> {
-    fn new(device: &B::Device) -> Self {
+impl SmallResNet {
+    fn new(device: &Device) -> Self {
         Self {
             stem: ConvBn::new(1, 8, 3, 1, device),
             block1: ResidualBlock::new(8, 8, 1, device),
@@ -181,7 +170,7 @@ impl<B: Backend> SmallResNet<B> {
         }
     }
 
-    fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 2> {
+    fn forward(&self, x: Tensor<4>) -> Tensor<2> {
         let x = relu(self.stem.forward(x)); //      [B, 8, 12, 12]
         let x = self.block1.forward(x); //          [B, 8, 12, 12]
         let x = self.block2.forward(x); //          [B, 16, 6, 6]
@@ -190,20 +179,20 @@ impl<B: Backend> SmallResNet<B> {
         self.head.forward(x) //                     [B, 4]
     }
 
-    fn with_fixed_weights(mut self, device: &B::Device) -> Self {
+    fn with_fixed_weights(mut self, device: &Device) -> Self {
         let mut f = Filler { phase: 0.0 };
         self.stem.fill(&mut f, device);
         self.block1.fill(&mut f, device);
         self.block2.fill(&mut f, device);
         // PyTorch stores Linear as [out, in] = [4, 16]; Burn as [in, out]. Transpose.
-        let w: Tensor<B, 2> = f.tensor([4, 16], 16, device);
+        let w: Tensor<2> = f.tensor([4, 16], 16, device);
         self.head.weight = Param::from_tensor(w.transpose());
         self.head.bias = Some(Param::from_tensor(f.vector(4, 0.1, 0.0, device)));
         self
     }
 }
 
-fn images<B: Backend>(device: &B::Device) -> Tensor<B, 4> {
+fn images(device: &Device) -> Tensor<4> {
     let mut rng = Lcg(42);
     let pixels: Vec<f32> = (0..4).flat_map(|c| make_image(c, &mut rng)).collect();
     Tensor::from_data(TensorData::new(pixels, [4, 1, SIZE, SIZE]), device)
@@ -211,20 +200,21 @@ fn images<B: Backend>(device: &B::Device) -> Tensor<B, 4> {
 
 /// Returns (eval-mode logits, train-mode logits, num_params, running-stat numbers).
 fn build() -> (Vec<f32>, Vec<f32>, usize, usize) {
-    let device = Default::default();
-    let model = SmallResNet::<Train>::new(&device).with_fixed_weights(&device);
+    let device = Device::flex().autodiff(); // BatchNorm uses the batch's statistics
+    let model = SmallResNet::new(&device).with_fixed_weights(&device);
 
-    // Eval mode first: .valid() is a copy on the inner backend, running stats untouched.
-    let eval_model: SmallResNet<Eval> = model.valid();
-    let eval = eval_model.forward(images::<Eval>(&device));
+    // Eval mode first: .valid() is a copy with autodiff and the training flags off,
+    // so BatchNorm uses its running statistics, which stay untouched.
+    let eval_model = model.valid();
+    let eval = eval_model.forward(images(&Device::flex()));
     // Train mode: every BatchNorm normalises with the statistics of these 4 images.
-    let train = model.forward(images::<Train>(&device));
+    let train = model.forward(images(&device));
 
     // Burn's num_params() also counts running_mean and running_var (2 per BN channel).
     let bn_channels = 8 + (8 + 8) + (16 + 16 + 16);
     (
-        eval.into_data().to_vec().unwrap(),
-        train.into_data().to_vec().unwrap(),
+        eval.into_data().try_to_vec().unwrap(),
+        train.into_data().try_to_vec().unwrap(),
         eval_model.num_params(),
         2 * bn_channels,
     )

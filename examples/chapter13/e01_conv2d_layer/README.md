@@ -5,7 +5,7 @@ The vertical-edge kernel run through `burn::tensor::module::conv2d` with the wei
 ```rust
 let mut layer = Conv2dConfig::new([1, 1], [3, 3])
     .with_bias(false)
-    .init::<Backend>(&device);
+    .init(&device);
 layer.weight = Param::from_tensor(kernel); // replace the random init
 ```
 

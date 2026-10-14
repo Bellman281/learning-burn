@@ -3,7 +3,7 @@
 `TransformerEncoderConfig::new(8, 16, 2, 2)` -- two post-norm layers, two heads, GELU -- with fixed weights copied into PyTorch's `nn.TransformerEncoder` (Burn's separate `query`/`key`/`value` projections become PyTorch's single `in_proj_weight`). Layer 0 is also written out by hand, Chapter 10 style, from the same weights.
 
 ```rust
-let enc = TransformerEncoderConfig::new(D_MODEL, D_FF, N_HEADS, N_LAYERS).init::<B>(device);
+let enc = TransformerEncoderConfig::new(D_MODEL, D_FF, N_HEADS, N_LAYERS).init(device);
 let out = enc.forward(TransformerEncoderInput::new(x.clone()));
 let masked = enc.forward(TransformerEncoderInput::new(x.clone()).mask_pad(pad));
 ```

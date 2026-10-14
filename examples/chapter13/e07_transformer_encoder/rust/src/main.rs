@@ -1,15 +1,12 @@
-use burn::backend::NdArray;
-use burn::backend::ndarray::NdArrayDevice;
 use burn::module::{Module, Param};
 use burn::nn::transformer::{
     TransformerEncoder, TransformerEncoderConfig, TransformerEncoderInput, TransformerEncoderLayer,
 };
 use burn::nn::{LayerNorm, Linear};
 use burn::tensor::activation::{gelu, softmax};
-use burn::tensor::{Bool, Tensor, TensorData};
+use burn::tensor::{Bool, Device, Tensor, TensorData};
 
-// No autodiff: every Dropout inside the encoder is switched off (Example 13.5).
-type B = NdArray;
+// The device has no autodiff, so every Dropout inside the encoder is switched off (Example 13.5).
 
 const D_MODEL: usize = 8;
 const N_HEADS: usize = 2;
@@ -30,9 +27,9 @@ impl Filler {
             .collect()
     }
     // A PyTorch-layout Linear weight [out, in], handed to Burn as [in, out].
-    fn linear(&mut self, lin: &mut Linear<B>, d_in: usize, d_out: usize, device: &NdArrayDevice) {
+    fn linear(&mut self, lin: &mut Linear, d_in: usize, d_out: usize, device: &Device) {
         let w = self.wave(d_out * d_in, 2.3, 1.0 / (d_in as f64).sqrt(), 0.0);
-        let w = Tensor::<B, 2>::from_data(TensorData::new(w, [d_out, d_in]), device);
+        let w = Tensor::<2>::from_data(TensorData::new(w, [d_out, d_in]), device);
         lin.weight = Param::from_tensor(w.transpose());
         let b = self.wave(d_out, 1.7, 0.1, 0.0);
         lin.bias = Some(Param::from_tensor(Tensor::from_data(
@@ -40,7 +37,7 @@ impl Filler {
             device,
         )));
     }
-    fn norm(&mut self, ln: &mut LayerNorm<B>, device: &NdArrayDevice) {
+    fn norm(&mut self, ln: &mut LayerNorm, device: &Device) {
         let g = self.wave(D_MODEL, 1.7, 0.1, 1.0);
         let b = self.wave(D_MODEL, 1.7, 0.1, 0.0);
         ln.gamma = Param::from_tensor(Tensor::from_data(TensorData::new(g, [D_MODEL]), device));
@@ -51,9 +48,9 @@ impl Filler {
     }
 }
 
-fn encoder(device: &NdArrayDevice) -> TransformerEncoder<B> {
+fn encoder(device: &Device) -> TransformerEncoder {
     // Post-norm (norm_first = false), GELU, dropout 0.1: all Burn's defaults.
-    let mut enc = TransformerEncoderConfig::new(D_MODEL, D_FF, N_HEADS, N_LAYERS).init::<B>(device);
+    let mut enc = TransformerEncoderConfig::new(D_MODEL, D_FF, N_HEADS, N_LAYERS).init(device);
     let mut f = Filler { phase: 0.0 };
     for layer in enc.layers.iter_mut() {
         f.linear(&mut layer.mha.query, D_MODEL, D_MODEL, device);
@@ -68,7 +65,7 @@ fn encoder(device: &NdArrayDevice) -> TransformerEncoder<B> {
     enc
 }
 
-fn input(device: &NdArrayDevice) -> Tensor<B, 3> {
+fn input(device: &Device) -> Tensor<3> {
     let v: Vec<f32> = (0..2 * SEQ * D_MODEL)
         .map(|i| (i as f32 * 0.37).sin())
         .collect();
@@ -76,7 +73,7 @@ fn input(device: &NdArrayDevice) -> Tensor<B, 3> {
 }
 
 // --- Chapter 10's block, written out again, reading the weights from Burn's layer ---
-fn layer_norm(x: Tensor<B, 3>, ln: &LayerNorm<B>) -> Tensor<B, 3> {
+fn layer_norm(x: Tensor<3>, ln: &LayerNorm) -> Tensor<3> {
     let mean = x.clone().mean_dim(2);
     let centered = x - mean;
     let var = centered.clone().square().mean_dim(2); // biased: divide by d
@@ -85,11 +82,11 @@ fn layer_norm(x: Tensor<B, 3>, ln: &LayerNorm<B>) -> Tensor<B, 3> {
     centered / var.add_scalar(1e-5).sqrt() * gamma + beta
 }
 
-fn layer_by_hand(layer: &TransformerEncoderLayer<B>, x: Tensor<B, 3>) -> Tensor<B, 3> {
+fn layer_by_hand(layer: &TransformerEncoderLayer, x: Tensor<3>) -> Tensor<3> {
     let [batch, seq, _] = x.dims();
     let d_k = D_MODEL / N_HEADS;
     // [batch, seq, d_model] -> [batch, heads, seq, d_k]: head h owns features h*d_k..(h+1)*d_k
-    let heads = |t: Tensor<B, 3>| t.reshape([batch, seq, N_HEADS, d_k]).swap_dims(1, 2);
+    let heads = |t: Tensor<3>| t.reshape([batch, seq, N_HEADS, d_k]).swap_dims(1, 2);
     let q = heads(layer.mha.query.forward(x.clone()));
     let k = heads(layer.mha.key.forward(x.clone()));
     let v = heads(layer.mha.value.forward(x.clone()));
@@ -106,7 +103,7 @@ fn layer_by_hand(layer: &TransformerEncoderLayer<B>, x: Tensor<B, 3>) -> Tensor<
 
 /// Returns (encoder output, masked encoder output, max|by hand - layer 0|, num_params).
 fn build() -> (Vec<f32>, Vec<f32>, f32, usize) {
-    let device = Default::default();
+    let device = Device::flex();
     let enc = encoder(&device);
     let x = input(&device);
 
@@ -114,7 +111,7 @@ fn build() -> (Vec<f32>, Vec<f32>, f32, usize) {
     println!("input {:?} -> output {:?}", x.dims(), out.dims());
 
     // Sequence 1 is only 3 tokens long: positions 3 and 4 are padding (true = ignore).
-    let pad = Tensor::<B, 2, Bool>::from_data(
+    let pad = Tensor::<2, Bool>::from_data(
         TensorData::from([[false; SEQ], [false, false, false, true, true]]),
         &device,
     );
@@ -125,8 +122,8 @@ fn build() -> (Vec<f32>, Vec<f32>, f32, usize) {
     let diff = (by_layer - by_hand).abs().max().into_scalar();
 
     (
-        out.into_data().to_vec().unwrap(),
-        masked.into_data().to_vec().unwrap(),
+        out.into_data().try_to_vec().unwrap(),
+        masked.into_data().try_to_vec().unwrap(),
         diff,
         enc.num_params(),
     )
