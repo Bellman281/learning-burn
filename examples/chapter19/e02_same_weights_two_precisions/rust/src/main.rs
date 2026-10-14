@@ -1,82 +1,83 @@
-use burn::backend::NdArray;
 use burn::module::Module;
 use burn::nn::{Linear, LinearConfig};
-use burn::record::{CompactRecorder, FullPrecisionSettings, NamedMpkFileRecorder};
-use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
-// Chapter 19 — Recorder formats: precision vs file size.
+use burn::tensor::{Device, Tensor};
+use burn_store::{BurnpackStore, HalfPrecisionAdapter, ModuleSnapshot};
+// Chapter 19 — Precision vs file size.
 //
-// A "recorder" decides how weights are serialized. Two msgpack recorders differ
-// only in numeric precision:
-//      * NamedMpkFileRecorder<FullPrecisionSettings> -> f32: exact weights
-//      * CompactRecorder (= NamedMpk + HalfPrecisionSettings) -> f16: weights are
-//        rounded to half precision, so predictions shift slightly
+// A burnpack file stores each weight in whatever dtype the model holds: f32
+// here. An adapter on the store can change that on the way out. Two stores that
+// differ only in that adapter:
+//      * BurnpackStore -> f32: exact weights
+//      * BurnpackStore + HalfPrecisionAdapter -> f16: weights are rounded to
+//        half precision on save, and widened back to f32 on load, so
+//        predictions shift slightly
 //
 // Saving the SAME model both ways shows the precision trade-off directly: full
-// precision reloads bit-for-bit; compact loses a little accuracy. f16 also
-// halves the WEIGHT bytes — but that only shrinks the file on a real model with
-// thousands of parameters. On this 2-parameter toy the file is almost all format
-// overhead, so the compact file is not smaller here (see the printout).
+// precision reloads bit-for-bit; half loses a little accuracy. f16 also halves
+// the WEIGHT bytes -- but that only shrinks the file on a real model with
+// thousands of parameters. On this 2-parameter toy the file is almost all
+// header and alignment padding (see the printout).
 //
-type MyBackend = NdArray;
-
-// NOTE: the Module derive requires the backend generic to be named `B`.
 #[derive(Module, Debug)]
-struct Model<B: Backend> {
-    linear: Linear<B>,
+struct Model {
+    linear: Linear,
 }
 
-impl<B: Backend> Model<B> {
-    fn new(device: &B::Device) -> Self {
+impl Model {
+    fn new(device: &Device) -> Self {
         Self {
             linear: LinearConfig::new(1, 1).init(device),
         }
     }
-    fn forward(&self, x: Tensor<B, 2>) -> Tensor<B, 2> {
+    fn forward(&self, x: Tensor<2>) -> Tensor<2> {
         self.linear.forward(x)
     }
 }
 
 fn main() {
-    let dev = Default::default();
+    let dev = Device::flex();
 
-    let x = Tensor::<MyBackend, 2>::from_floats([[2.0]], &dev);
-    let model: Model<MyBackend> = Model::new(&dev);
+    let x = Tensor::<2>::from_floats([[2.0]], &dev);
+    let model = Model::new(&dev);
     let original = model.forward(x.clone());
 
     // --- Full precision (f32): exact round-trip ---
-    let full = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
-    let full_path = std::env::temp_dir().join("ch19_full");
-    model
-        .clone()
-        .save_file(full_path.clone(), &full)
-        .expect("save full");
-    let from_full: Model<MyBackend> = Model::new(&dev)
-        .load_file(full_path.clone(), &full, &dev)
+    let full_path = std::env::temp_dir().join("ch19_full.bpk");
+    let mut full = BurnpackStore::from_file(&full_path).overwrite(true);
+    model.save_into(&mut full).expect("save full");
+    let mut from_full = Model::new(&dev);
+    from_full
+        .load_from(&mut BurnpackStore::from_file(&full_path))
         .expect("load full");
     let pred_full = from_full.forward(x.clone());
 
-    // --- Compact (f16): smaller file, slight precision loss ---
-    let compact = CompactRecorder::new();
-    let compact_path = std::env::temp_dir().join("ch19_compact");
-    model
-        .save_file(compact_path.clone(), &compact)
-        .expect("save compact");
-    let from_compact: Model<MyBackend> = Model::new(&dev)
-        .load_file(compact_path.clone(), &compact, &dev)
-        .expect("load compact");
-    let pred_compact = from_compact.forward(x);
-    let full_size = std::fs::metadata(full_path.with_extension("mpk"))
-        .map(|m| m.len())
-        .unwrap_or(0);
-    let compact_size = std::fs::metadata(compact_path.with_extension("mpk"))
-        .map(|m| m.len())
-        .unwrap_or(0);
+    // --- Half (f16): rounded on the way out, back to f32 on the way in ---
+    let half_path = std::env::temp_dir().join("ch19_half.bpk");
+    let mut half = BurnpackStore::from_file(&half_path)
+        .overwrite(true)
+        .with_to_adapter(HalfPrecisionAdapter::new());
+    model.save_into(&mut half).expect("save half");
+    let mut from_half = Model::new(&dev);
+    from_half
+        .load_from(
+            &mut BurnpackStore::from_file(&half_path)
+                .with_from_adapter(HalfPrecisionAdapter::new()),
+        )
+        .expect("load half");
+    let pred_half = from_half.forward(x);
+
+    // Without the adapter, a load keeps the dtype that is in the file.
+    let as_stored = Model::new(&dev).load_file(&half_path);
+
+    let full_size = std::fs::metadata(&full_path).map(|m| m.len()).unwrap_or(0);
+    let half_size = std::fs::metadata(&half_path).map(|m| m.len()).unwrap_or(0);
     println!("original prediction   = {}", original.to_data());
     println!("full-precision reload = {}", pred_full.to_data()); // exactly equal
-    println!("compact (f16)  reload = {}", pred_compact.to_data()); // very close
-    println!("full    (f32)  file   = {full_size} bytes");
-    println!("compact (f16)  file   = {compact_size} bytes");
-    // On this tiny model format overhead dominates, so f16 does not shrink the
-    // file. The size win appears at scale, where weight bytes dominate.
+    println!("half (f16)     reload = {}", pred_half.to_data()); // very close
+    println!("full (f32)     file   = {full_size} bytes");
+    println!("half (f16)     file   = {half_size} bytes");
+    println!(
+        "half file, plain load_file: weight dtype = {:?}",
+        as_stored.linear.weight.val().dtype()
+    );
 }

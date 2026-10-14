@@ -1,12 +1,9 @@
-use burn::backend::NdArray;
 use burn::module::Module;
 use burn::nn::conv::{Conv2d, Conv2dConfig};
 use burn::nn::pool::{AdaptiveAvgPool2d, AdaptiveAvgPool2dConfig, MaxPool2d, MaxPool2dConfig};
 use burn::nn::{Linear, LinearConfig, PaddingConfig2d};
-use burn::record::{FullPrecisionSettings, NamedMpkFileRecorder, Recorder};
 use burn::tensor::activation::relu;
-use burn::tensor::backend::Backend;
-use burn::tensor::{Tensor, TensorData};
+use burn::tensor::{Device, Tensor, TensorData};
 use burn_store::{ModuleSnapshot, PytorchStore};
 
 const SIZE: usize = 12;
@@ -56,16 +53,16 @@ fn make_image(class: usize, rng: &mut Lcg) -> Vec<f32> {
 
 // --- the Burn model: Chapter 13's CNN, with Burn-style field names ---
 #[derive(Module, Debug)]
-struct SmallCnn<B: Backend> {
-    conv1: Conv2d<B>,
+struct SmallCnn {
+    conv1: Conv2d,
     pool: MaxPool2d,
-    conv2: Conv2d<B>,
+    conv2: Conv2d,
     gap: AdaptiveAvgPool2d,
-    head: Linear<B>,
+    head: Linear,
 }
 
-impl<B: Backend> SmallCnn<B> {
-    fn new(device: &B::Device) -> Self {
+impl SmallCnn {
+    fn new(device: &Device) -> Self {
         let same = PaddingConfig2d::Explicit(1, 1, 1, 1);
         Self {
             conv1: Conv2dConfig::new([1, 4], [3, 3])
@@ -80,7 +77,7 @@ impl<B: Backend> SmallCnn<B> {
         }
     }
 
-    fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 2> {
+    fn forward(&self, x: Tensor<4>) -> Tensor<2> {
         let x = self.pool.forward(relu(self.conv1.forward(x)));
         let x = relu(self.conv2.forward(x));
         let [batch, channels, _, _] = x.dims();
@@ -90,7 +87,7 @@ impl<B: Backend> SmallCnn<B> {
 }
 
 // The first 8 test images of Chapter 13 (seed 7), as one batch.
-fn test_images<B: Backend>(device: &B::Device) -> Tensor<B, 4> {
+fn test_images(device: &Device) -> Tensor<4> {
     let mut rng = Lcg(7);
     let pixels: Vec<f32> = (0..8).flat_map(|i| make_image(i % 4, &mut rng)).collect();
     Tensor::from_data(TensorData::new(pixels, [8, 1, SIZE, SIZE]), device)
@@ -126,52 +123,48 @@ fn max_diff(a: &[f32], b: &[f32]) -> f32 {
 
 const PT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../weights/small_cnn.pt");
 
-/// The one-off converter: PyTorch file in, Burn record out.
-fn convert(out: &std::path::Path) -> SmallCnn<NdArray> {
-    let device = Default::default();
+/// The one-off converter: PyTorch file in, burnpack file out.
+fn convert(out: &std::path::Path) -> SmallCnn {
+    let device = Device::flex();
     let mut store = PytorchStore::from_file(PT)
         .with_key_remapping(r"^features\.0\.(.+)$", "conv1.$1")
         .with_key_remapping(r"^features\.3\.(.+)$", "conv2.$1")
         .with_key_remapping(r"^classifier\.(.+)$", "head.$1");
-    let mut model = SmallCnn::<NdArray>::new(&device);
+    let mut model = SmallCnn::new(&device);
     model.load_from(&mut store).expect("load PyTorch weights");
-    model
-        .clone()
-        .save_file(out, &NamedMpkFileRecorder::<FullPrecisionSettings>::new())
-        .expect("save Burn record");
+    model.clone().save_file(out).expect("save burnpack file");
     model
 }
 
 /// What the serving program does from then on: only `burn`, no importer.
-fn load(path: &std::path::Path) -> SmallCnn<NdArray> {
-    let device = Default::default();
-    let record = NamedMpkFileRecorder::<FullPrecisionSettings>::new()
-        .load(path.to_path_buf(), &device)
-        .expect("load Burn record");
-    SmallCnn::new(&device).load_record(record)
+fn load(path: &std::path::Path) -> SmallCnn {
+    let device = Device::flex();
+    SmallCnn::new(&device)
+        .try_load_file(path)
+        .expect("load burnpack file")
 }
 
 /// Returns (file sizes, logits identical after the round trip, max |Burn - PyTorch|).
 fn build() -> (Vec<(String, u64)>, bool, f32) {
-    let device = Default::default();
+    let device = Device::flex();
     let out = std::env::temp_dir().join("learning-burn-c19e6-small_cnn");
     let converted = convert(&out);
-    let served = load(&out.with_extension("mpk"));
+    let served = load(&out.with_extension("bpk"));
 
     let a: Vec<f32> = converted
         .forward(test_images(&device))
         .into_data()
-        .to_vec()
+        .try_to_vec()
         .unwrap();
     let b: Vec<f32> = served
         .forward(test_images(&device))
         .into_data()
-        .to_vec()
+        .try_to_vec()
         .unwrap();
 
     let sizes = [
         PT.to_string(),
-        out.with_extension("mpk").display().to_string(),
+        out.with_extension("bpk").display().to_string(),
     ]
     .into_iter()
     .map(|p| {

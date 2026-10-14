@@ -26,7 +26,7 @@ print(f'saved weights to "{path}"')
 # --- load into a fresh model, elsewhere ---
 infer = nn.Linear(1, 1)
 infer.load_state_dict(torch.load(path, weights_only=True))
-infer.eval()  # <- Burn: just don't use Autodiff
+infer.eval()  # <- Burn: a device without autodiff
 
 pred = infer(torch.tensor([[5.]]))
 print(f"prediction for x=5 after reload: [{pred.item():.1f}]")  # ~11 (= 2*5 + 1)
