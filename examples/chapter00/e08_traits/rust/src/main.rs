@@ -9,7 +9,8 @@
 //
 // Rust names that contract explicitly with a `trait`, and each type provides an
 // `impl`. Functions can then accept "any type that implements Area". This is
-// exactly how Burn works: a Backend is a trait, and NdArray/Wgpu/etc. implement it.
+// how Burn is built inside: Backend is a trait, and Flex, Cube (CubeCL) and
+// Autodiff<B> implement it. Your code never names one; a runtime Device picks it.
 trait Area {
     fn area(&self) -> f64;
 }
