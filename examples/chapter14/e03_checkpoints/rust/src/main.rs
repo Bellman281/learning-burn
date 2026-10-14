@@ -1,4 +1,3 @@
-use burn::backend::{Autodiff, NdArray};
 use burn::config::Config;
 use burn::data::dataloader::DataLoaderBuilder;
 use burn::data::dataloader::batcher::Batcher;
@@ -9,14 +8,13 @@ use burn::nn::loss::CrossEntropyLossConfig;
 use burn::nn::pool::{AdaptiveAvgPool2d, AdaptiveAvgPool2dConfig, MaxPool2d, MaxPool2dConfig};
 use burn::nn::{Linear, LinearConfig, PaddingConfig2d};
 use burn::optim::AdamConfig;
-use burn::record::{FullPrecisionSettings, NamedMpkFileRecorder};
 use burn::tensor::activation::relu;
-use burn::tensor::backend::{AutodiffBackend, Backend};
-use burn::tensor::{Int, Tensor, TensorData};
+use burn::tensor::{Device, Int, Tensor, TensorData};
+use burn::train::logger::{EvaluationProgressLogger, TrainingProgressLogger};
 use burn::train::metric::{AccuracyMetric, LossMetric, MetricDefinition};
 use burn::train::renderer::{
-    EvaluationName, EvaluationProgress, MetricState, MetricsRenderer, MetricsRendererEvaluation,
-    MetricsRendererTraining, ProgressType, TrainingProgress,
+    EvaluationName, MetricState, MetricsRenderer, MetricsRendererEvaluation,
+    MetricsRendererTraining,
 };
 use burn::train::{
     ClassificationOutput, InferenceStep, Learner, SupervisedTraining, TrainOutput, TrainStep,
@@ -88,16 +86,16 @@ fn shapes_dataset(per_class: usize, seed: u32) -> InMemDataset<ShapeItem> {
 }
 
 #[derive(Clone, Debug)]
-struct ShapeBatch<B: Backend> {
-    images: Tensor<B, 4>,       // [batch, 1, 12, 12]
-    targets: Tensor<B, 1, Int>, // [batch]
+struct ShapeBatch {
+    images: Tensor<4>,       // [batch, 1, 12, 12]
+    targets: Tensor<1, Int>, // [batch]
 }
 
 #[derive(Clone, Default)]
 struct ShapeBatcher;
 
-impl<B: Backend> Batcher<B, ShapeItem, ShapeBatch<B>> for ShapeBatcher {
-    fn batch(&self, items: Vec<ShapeItem>, device: &B::Device) -> ShapeBatch<B> {
+impl Batcher<ShapeItem, ShapeBatch> for ShapeBatcher {
+    fn batch(&self, items: Vec<ShapeItem>, device: &Device) -> ShapeBatch {
         let n = items.len();
         let pixels: Vec<f32> = items.iter().flat_map(|it| it.pixels.clone()).collect();
         let labels: Vec<i64> = items.iter().map(|it| it.label as i64).collect();
@@ -120,7 +118,7 @@ struct SmallCnnConfig {
 }
 
 impl SmallCnnConfig {
-    fn init<B: Backend>(&self, device: &B::Device) -> SmallCnn<B> {
+    fn init(&self, device: &Device) -> SmallCnn {
         let same = PaddingConfig2d::Explicit(1, 1, 1, 1);
         SmallCnn {
             conv1: Conv2dConfig::new([1, self.channels1], [3, 3])
@@ -137,16 +135,16 @@ impl SmallCnnConfig {
 }
 
 #[derive(Module, Debug)]
-struct SmallCnn<B: Backend> {
-    conv1: Conv2d<B>,
+struct SmallCnn {
+    conv1: Conv2d,
     pool: MaxPool2d,
-    conv2: Conv2d<B>,
+    conv2: Conv2d,
     gap: AdaptiveAvgPool2d,
-    head: Linear<B>,
+    head: Linear,
 }
 
-impl<B: Backend> SmallCnn<B> {
-    fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 2> {
+impl SmallCnn {
+    fn forward(&self, x: Tensor<4>) -> Tensor<2> {
         let x = self.pool.forward(relu(self.conv1.forward(x)));
         let x = relu(self.conv2.forward(x));
         let [batch, channels, _, _] = x.dims();
@@ -156,7 +154,7 @@ impl<B: Backend> SmallCnn<B> {
 
     // Chapter 13's fixed starting weights, so every run can be checked against PyTorch.
     // Written for the default config (4 and 8 channels, 4 classes).
-    fn with_fixed_weights(mut self, device: &B::Device) -> Self {
+    fn with_fixed_weights(mut self, device: &Device) -> Self {
         let det = |n: usize, fan_in: usize, phase: f64| -> Vec<f32> {
             (0..n)
                 .map(|i| ((i as f64 * 2.3 + phase).sin() / (fan_in as f64).sqrt()) as f32)
@@ -174,11 +172,7 @@ impl<B: Backend> SmallCnn<B> {
     }
 }
 
-fn param<B: Backend, const D: usize>(
-    v: Vec<f32>,
-    shape: [usize; D],
-    device: &B::Device,
-) -> Param<Tensor<B, D>> {
+fn param<const D: usize>(v: Vec<f32>, shape: [usize; D], device: &Device) -> Param<Tensor<D>> {
     Param::from_tensor(Tensor::from_data(TensorData::new(v, shape), device))
 }
 
@@ -196,8 +190,8 @@ struct TrainingConfig {
 }
 
 // --- the two traits the Learner needs: one training step, one inference step ---
-impl<B: Backend> SmallCnn<B> {
-    fn forward_classification(&self, batch: ShapeBatch<B>) -> ClassificationOutput<B> {
+impl SmallCnn {
+    fn forward_classification(&self, batch: ShapeBatch) -> ClassificationOutput {
         let logits = self.forward(batch.images);
         let loss = CrossEntropyLossConfig::new()
             .init(&logits.device())
@@ -206,21 +200,21 @@ impl<B: Backend> SmallCnn<B> {
     }
 }
 
-impl<B: AutodiffBackend> TrainStep for SmallCnn<B> {
-    type Input = ShapeBatch<B>;
-    type Output = ClassificationOutput<B>;
+impl TrainStep for SmallCnn {
+    type Input = ShapeBatch;
+    type Output = ClassificationOutput;
 
-    fn step(&self, batch: ShapeBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
+    fn step(&self, batch: ShapeBatch) -> TrainOutput<ClassificationOutput> {
         let item = self.forward_classification(batch);
         TrainOutput::new(self, item.loss.backward(), item)
     }
 }
 
-impl<B: Backend> InferenceStep for SmallCnn<B> {
-    type Input = ShapeBatch<B>;
-    type Output = ClassificationOutput<B>;
+impl InferenceStep for SmallCnn {
+    type Input = ShapeBatch;
+    type Output = ClassificationOutput;
 
-    fn step(&self, batch: ShapeBatch<B>) -> ClassificationOutput<B> {
+    fn step(&self, batch: ShapeBatch) -> ClassificationOutput {
         self.forward_classification(batch)
     }
 }
@@ -231,25 +225,37 @@ struct Quiet;
 impl MetricsRendererTraining for Quiet {
     fn update_train(&mut self, _: MetricState) {}
     fn update_valid(&mut self, _: MetricState) {}
-    fn render_train(&mut self, _: TrainingProgress, _: Vec<ProgressType>) {}
-    fn render_valid(&mut self, _: TrainingProgress, _: Vec<ProgressType>) {}
+}
+impl TrainingProgressLogger for Quiet {
+    fn start(&mut self, _: usize, _: usize, _: Option<usize>, _: Option<&str>) {}
+    fn update_epoch(&mut self, _: usize) {}
+    fn start_split(&mut self, _: &str, _: usize) {}
+    fn update_split(&mut self, _: usize) {}
+    fn end_split(&mut self) {}
+    fn end(&mut self) {}
+    fn log_event_training(&mut self, _: String) {}
 }
 impl MetricsRendererEvaluation for Quiet {
     fn update_test(&mut self, _: EvaluationName, _: MetricState) {}
-    fn render_test(&mut self, _: EvaluationProgress, _: Vec<ProgressType>) {}
+}
+impl EvaluationProgressLogger for Quiet {
+    fn start_global_progress(&mut self, _: usize) {}
+    fn start_test(&mut self, _: &str, _: usize) {}
+    fn update_test_progress(&mut self, _: usize) {}
+    fn end_test(&mut self) {}
+    fn end_global_progress(&mut self) {}
+    fn log_event_evaluation(&mut self, _: String) {}
 }
 impl MetricsRenderer for Quiet {
     fn manual_close(&mut self) {}
     fn register_metric(&mut self, _: MetricDefinition) {}
 }
 
-type MyBackend = Autodiff<NdArray>;
-
 fn loaders(
     config: &TrainingConfig,
 ) -> (
-    std::sync::Arc<dyn burn::data::dataloader::DataLoader<MyBackend, ShapeBatch<MyBackend>>>,
-    std::sync::Arc<dyn burn::data::dataloader::DataLoader<NdArray, ShapeBatch<NdArray>>>,
+    std::sync::Arc<dyn burn::data::dataloader::DataLoader<ShapeBatch>>,
+    std::sync::Arc<dyn burn::data::dataloader::DataLoader<ShapeBatch>>,
 ) {
     let train = DataLoaderBuilder::new(ShapeBatcher)
         .batch_size(config.batch_size)
@@ -261,28 +267,29 @@ fn loaders(
 }
 
 /// One run of the Learner in `dir`, up to `epochs`, optionally resuming from a checkpoint.
-fn run(dir: &Path, epochs: usize, resume_from: Option<usize>) -> SmallCnn<NdArray> {
-    let device = Default::default();
+fn run(dir: &Path, epochs: usize, resume_from: Option<usize>) -> SmallCnn {
+    let device = Device::flex().autodiff();
     let config = TrainingConfig::new(SmallCnnConfig::new(), AdamConfig::new().with_epsilon(1e-8));
     let (train, valid) = loaders(&config);
     let mut training = SupervisedTraining::new(dir, train, valid)
         .metrics((AccuracyMetric::new(), LossMetric::new()))
-        .with_file_checkpointer(NamedMpkFileRecorder::<FullPrecisionSettings>::new())
+        .with_default_checkpointers() // model, optimizer, scheduler: one burnpack file each
         .num_epochs(epochs)
-        .renderer(Quiet);
+        .renderer(Box::new(Quiet));
     if let Some(epoch) = resume_from {
         training = training.checkpoint(epoch); // load model, optimiser AND scheduler state
     }
-    let model = config
-        .model
-        .init::<MyBackend>(&device)
-        .with_fixed_weights(&device);
+    let model = config.model.init(&device).with_fixed_weights(&device);
     let learner = Learner::new(model, config.optimizer.init(), config.learning_rate);
-    training.launch(learner).model
+    let result = training.launch(learner);
+    if let Some(err) = result.error {
+        panic!("training stopped early: {err}");
+    }
+    result.model
 }
 
-fn weights(model: &SmallCnn<NdArray>) -> Vec<f32> {
-    model.conv1.weight.val().into_data().to_vec().unwrap()
+fn weights(model: &SmallCnn) -> Vec<f32> {
+    model.conv1.weight.val().into_data().try_to_vec().unwrap()
 }
 
 /// Returns (checkpoint files after the first run, max |difference| straight vs resumed).
@@ -326,8 +333,8 @@ mod tests {
     #[test]
     fn resume_is_exact_like_pytorch() {
         let (files, diff) = build();
-        assert!(files.iter().any(|f| f == "model-8.mpk"));
-        assert!(files.iter().any(|f| f == "optim-8.mpk"));
+        assert!(files.iter().any(|f| f == "model-8.bpk"));
+        assert!(files.iter().any(|f| f == "optim-8.bpk"));
         assert_eq!(diff, 0.0); // python/main.py shows the same for torch.save / torch.load
     }
 }

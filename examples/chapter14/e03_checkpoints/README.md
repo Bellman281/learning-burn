@@ -1,6 +1,6 @@
 # Example 14.3 — Checkpoints and Resuming
 
-Train 8 epochs with a file checkpointer, stop, resume from `checkpoint(8)` in a new run, finish at 15.
+Train 8 epochs with the default (burnpack) checkpointers, stop, resume from `checkpoint(8)` in a new run, finish at 15.
 
 ## Files
 

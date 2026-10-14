@@ -1,4 +1,3 @@
-use burn::backend::{Autodiff, NdArray};
 use burn::config::Config;
 use burn::data::dataloader::DataLoaderBuilder;
 use burn::data::dataloader::batcher::Batcher;
@@ -10,12 +9,12 @@ use burn::nn::pool::{AdaptiveAvgPool2d, AdaptiveAvgPool2dConfig, MaxPool2d, MaxP
 use burn::nn::{Linear, LinearConfig, PaddingConfig2d};
 use burn::optim::AdamConfig;
 use burn::tensor::activation::relu;
-use burn::tensor::backend::{AutodiffBackend, Backend};
-use burn::tensor::{Int, Tensor, TensorData};
+use burn::tensor::{Device, Int, Tensor, TensorData};
+use burn::train::logger::{EvaluationProgressLogger, TrainingProgressLogger};
 use burn::train::metric::{AccuracyMetric, LossMetric, MetricDefinition};
 use burn::train::renderer::{
-    EvaluationName, EvaluationProgress, MetricState, MetricsRenderer, MetricsRendererEvaluation,
-    MetricsRendererTraining, ProgressType, TrainingProgress,
+    EvaluationName, MetricState, MetricsRenderer, MetricsRendererEvaluation,
+    MetricsRendererTraining,
 };
 use burn::train::{
     ClassificationOutput, InferenceStep, Learner, SupervisedTraining, TrainOutput, TrainStep,
@@ -87,16 +86,16 @@ fn shapes_dataset(per_class: usize, seed: u32) -> InMemDataset<ShapeItem> {
 }
 
 #[derive(Clone, Debug)]
-struct ShapeBatch<B: Backend> {
-    images: Tensor<B, 4>,       // [batch, 1, 12, 12]
-    targets: Tensor<B, 1, Int>, // [batch]
+struct ShapeBatch {
+    images: Tensor<4>,       // [batch, 1, 12, 12]
+    targets: Tensor<1, Int>, // [batch]
 }
 
 #[derive(Clone, Default)]
 struct ShapeBatcher;
 
-impl<B: Backend> Batcher<B, ShapeItem, ShapeBatch<B>> for ShapeBatcher {
-    fn batch(&self, items: Vec<ShapeItem>, device: &B::Device) -> ShapeBatch<B> {
+impl Batcher<ShapeItem, ShapeBatch> for ShapeBatcher {
+    fn batch(&self, items: Vec<ShapeItem>, device: &Device) -> ShapeBatch {
         let n = items.len();
         let pixels: Vec<f32> = items.iter().flat_map(|it| it.pixels.clone()).collect();
         let labels: Vec<i64> = items.iter().map(|it| it.label as i64).collect();
@@ -119,7 +118,7 @@ struct SmallCnnConfig {
 }
 
 impl SmallCnnConfig {
-    fn init<B: Backend>(&self, device: &B::Device) -> SmallCnn<B> {
+    fn init(&self, device: &Device) -> SmallCnn {
         let same = PaddingConfig2d::Explicit(1, 1, 1, 1);
         SmallCnn {
             conv1: Conv2dConfig::new([1, self.channels1], [3, 3])
@@ -136,16 +135,16 @@ impl SmallCnnConfig {
 }
 
 #[derive(Module, Debug)]
-struct SmallCnn<B: Backend> {
-    conv1: Conv2d<B>,
+struct SmallCnn {
+    conv1: Conv2d,
     pool: MaxPool2d,
-    conv2: Conv2d<B>,
+    conv2: Conv2d,
     gap: AdaptiveAvgPool2d,
-    head: Linear<B>,
+    head: Linear,
 }
 
-impl<B: Backend> SmallCnn<B> {
-    fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 2> {
+impl SmallCnn {
+    fn forward(&self, x: Tensor<4>) -> Tensor<2> {
         let x = self.pool.forward(relu(self.conv1.forward(x)));
         let x = relu(self.conv2.forward(x));
         let [batch, channels, _, _] = x.dims();
@@ -155,7 +154,7 @@ impl<B: Backend> SmallCnn<B> {
 
     // Chapter 13's fixed starting weights, so every run can be checked against PyTorch.
     // Written for the default config (4 and 8 channels, 4 classes).
-    fn with_fixed_weights(mut self, device: &B::Device) -> Self {
+    fn with_fixed_weights(mut self, device: &Device) -> Self {
         let det = |n: usize, fan_in: usize, phase: f64| -> Vec<f32> {
             (0..n)
                 .map(|i| ((i as f64 * 2.3 + phase).sin() / (fan_in as f64).sqrt()) as f32)
@@ -173,11 +172,7 @@ impl<B: Backend> SmallCnn<B> {
     }
 }
 
-fn param<B: Backend, const D: usize>(
-    v: Vec<f32>,
-    shape: [usize; D],
-    device: &B::Device,
-) -> Param<Tensor<B, D>> {
+fn param<const D: usize>(v: Vec<f32>, shape: [usize; D], device: &Device) -> Param<Tensor<D>> {
     Param::from_tensor(Tensor::from_data(TensorData::new(v, shape), device))
 }
 
@@ -195,8 +190,8 @@ struct TrainingConfig {
 }
 
 // --- the two traits the Learner needs: one training step, one inference step ---
-impl<B: Backend> SmallCnn<B> {
-    fn forward_classification(&self, batch: ShapeBatch<B>) -> ClassificationOutput<B> {
+impl SmallCnn {
+    fn forward_classification(&self, batch: ShapeBatch) -> ClassificationOutput {
         let logits = self.forward(batch.images);
         let loss = CrossEntropyLossConfig::new()
             .init(&logits.device())
@@ -205,21 +200,21 @@ impl<B: Backend> SmallCnn<B> {
     }
 }
 
-impl<B: AutodiffBackend> TrainStep for SmallCnn<B> {
-    type Input = ShapeBatch<B>;
-    type Output = ClassificationOutput<B>;
+impl TrainStep for SmallCnn {
+    type Input = ShapeBatch;
+    type Output = ClassificationOutput;
 
-    fn step(&self, batch: ShapeBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
+    fn step(&self, batch: ShapeBatch) -> TrainOutput<ClassificationOutput> {
         let item = self.forward_classification(batch);
         TrainOutput::new(self, item.loss.backward(), item)
     }
 }
 
-impl<B: Backend> InferenceStep for SmallCnn<B> {
-    type Input = ShapeBatch<B>;
-    type Output = ClassificationOutput<B>;
+impl InferenceStep for SmallCnn {
+    type Input = ShapeBatch;
+    type Output = ClassificationOutput;
 
-    fn step(&self, batch: ShapeBatch<B>) -> ClassificationOutput<B> {
+    fn step(&self, batch: ShapeBatch) -> ClassificationOutput {
         self.forward_classification(batch)
     }
 }
@@ -230,26 +225,44 @@ struct Quiet;
 impl MetricsRendererTraining for Quiet {
     fn update_train(&mut self, _: MetricState) {}
     fn update_valid(&mut self, _: MetricState) {}
-    fn render_train(&mut self, _: TrainingProgress, _: Vec<ProgressType>) {}
-    fn render_valid(&mut self, _: TrainingProgress, _: Vec<ProgressType>) {}
+}
+impl TrainingProgressLogger for Quiet {
+    fn start(&mut self, _: usize, _: usize, _: Option<usize>, _: Option<&str>) {}
+    fn update_epoch(&mut self, _: usize) {}
+    fn start_split(&mut self, _: &str, _: usize) {}
+    fn update_split(&mut self, _: usize) {}
+    fn end_split(&mut self) {}
+    fn end(&mut self) {}
+    fn log_event_training(&mut self, _: String) {}
 }
 impl MetricsRendererEvaluation for Quiet {
     fn update_test(&mut self, _: EvaluationName, _: MetricState) {}
-    fn render_test(&mut self, _: EvaluationProgress, _: Vec<ProgressType>) {}
+}
+impl EvaluationProgressLogger for Quiet {
+    fn start_global_progress(&mut self, _: usize) {}
+    fn start_test(&mut self, _: &str, _: usize) {}
+    fn update_test_progress(&mut self, _: usize) {}
+    fn end_test(&mut self) {}
+    fn end_global_progress(&mut self) {}
+    fn log_event_evaluation(&mut self, _: String) {}
 }
 impl MetricsRenderer for Quiet {
     fn manual_close(&mut self) {}
     fn register_metric(&mut self, _: MetricDefinition) {}
 }
 
-// The Learner logs every batch to <dir>/<split>/epoch-N/<Metric>.log as "value,count".
-// The epoch's number is the count-weighted mean of those lines.
+// The Learner logs every batch to <dir>/<split>/epoch-N/<Metric>.log as "value,count",
+// then one "value,final" line with its own epoch value. The epoch's number is the
+// count-weighted mean of the batch lines.
 fn epoch_mean(dir: &Path, split: &str, epoch: usize, metric: &str) -> f64 {
     let log = std::fs::read_to_string(dir.join(format!("{split}/epoch-{epoch}/{metric}.log")))
         .expect("metric log");
     let (mut sum, mut n) = (0.0, 0.0);
     for line in log.lines() {
         let (v, c) = line.split_once(',').unwrap();
+        if c == "final" {
+            continue; // the Learner's own aggregate of the lines above
+        }
         let c: f64 = c.parse().unwrap();
         sum += v.parse::<f64>().unwrap() * c;
         n += c;
@@ -257,11 +270,9 @@ fn epoch_mean(dir: &Path, split: &str, epoch: usize, metric: &str) -> f64 {
     sum / n
 }
 
-type MyBackend = Autodiff<NdArray>;
-
 /// Trains with the Learner. Returns, per epoch: (train loss, valid loss, valid accuracy %).
 fn build() -> Vec<(f64, f64, f64)> {
-    let device = Default::default();
+    let device = Device::flex().autodiff();
     let config = TrainingConfig::new(SmallCnnConfig::new(), AdamConfig::new().with_epsilon(1e-8));
     let dir = std::env::temp_dir().join("learning-burn-c14e2");
     std::fs::remove_dir_all(&dir).ok();
@@ -276,14 +287,15 @@ fn build() -> Vec<(f64, f64, f64)> {
     let training = SupervisedTraining::new(&dir, train, valid)
         .metrics((AccuracyMetric::new(), LossMetric::new()))
         .num_epochs(config.num_epochs)
-        .renderer(Quiet);
+        .renderer(Box::new(Quiet));
 
-    let model = config
-        .model
-        .init::<MyBackend>(&device)
-        .with_fixed_weights(&device);
+    let model = config.model.init(&device).with_fixed_weights(&device);
     let learner = Learner::new(model, config.optimizer.init(), config.learning_rate);
-    let _trained = training.launch(learner).model;
+    let result = training.launch(learner);
+    if let Some(err) = result.error {
+        panic!("training stopped early: {err}"); // batch and metric errors are reported here
+    }
+    let _trained = result.model;
 
     (1..=config.num_epochs)
         .map(|e| {

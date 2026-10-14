@@ -1,6 +1,6 @@
 # Example 14.4 — Shipping the Artifact
 
-The training program writes `config.json` and `model.mpk`; a separate loader rebuilds the model from those two files alone.
+The training program writes `config.json` and `model.bpk` (a burnpack file, from `save_file`); a separate loader rebuilds the model from those two files alone.
 
 ## Files
 
