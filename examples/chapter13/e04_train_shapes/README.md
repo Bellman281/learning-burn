@@ -3,8 +3,10 @@
 160 training images go through Chapter 12's `Dataset` → `Batcher` → `DataLoader` in batches of 16. Training is 15 epochs of Adam (lr 0.02, eps 1e-8 to match PyTorch), and the test is 80 held-out images drawn with a different seed.
 
 ```rust
-let loader = DataLoaderBuilder::<MyBackend, ShapeItem, ShapeBatch<MyBackend>>::new(ShapeBatcher)
+let device = Device::flex().autodiff(); // training needs gradients
+let loader = DataLoaderBuilder::<ShapeItem, ShapeBatch>::new(ShapeBatcher)
     .batch_size(16)
+    .set_device(device.clone())
     .build(train);
 ```
 

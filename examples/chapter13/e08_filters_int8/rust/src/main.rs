@@ -1,18 +1,14 @@
-use burn::backend::{Autodiff, NdArray};
 use burn::data::dataloader::DataLoaderBuilder;
 use burn::data::dataloader::batcher::Batcher;
 use burn::data::dataset::{Dataset, InMemDataset};
-use burn::module::{AutodiffModule, Module, Param};
+use burn::module::{Module, Param};
 use burn::nn::conv::{Conv2d, Conv2dConfig};
 use burn::nn::loss::CrossEntropyLossConfig;
 use burn::nn::pool::{AdaptiveAvgPool2d, AdaptiveAvgPool2dConfig, MaxPool2d, MaxPool2dConfig};
 use burn::nn::{Linear, LinearConfig, PaddingConfig2d};
-use burn::optim::{AdamConfig, GradientsParams, Optimizer};
+use burn::optim::{AdamConfig, GradientsParams};
 use burn::tensor::activation::relu;
-use burn::tensor::backend::Backend;
-use burn::tensor::{ElementConversion, Int, Tensor, TensorData};
-
-type MyBackend = Autodiff<NdArray>;
+use burn::tensor::{Device, Int, Tensor, TensorData};
 
 const SIZE: usize = 12;
 
@@ -61,16 +57,16 @@ fn make_image(class: usize, rng: &mut Lcg) -> Vec<f32> {
 
 // --- the model ---
 #[derive(Module, Debug)]
-struct SmallCnn<B: Backend> {
-    conv1: Conv2d<B>,       // 1 -> 4 channels, 3x3
+struct SmallCnn {
+    conv1: Conv2d,          // 1 -> 4 channels, 3x3
     pool: MaxPool2d,        // 12x12 -> 6x6
-    conv2: Conv2d<B>,       // 4 -> 8 channels, 3x3
+    conv2: Conv2d,          // 4 -> 8 channels, 3x3
     gap: AdaptiveAvgPool2d, // 6x6 -> 1x1: one number per channel
-    head: Linear<B>,        // 8 -> 4 classes
+    head: Linear,           // 8 -> 4 classes
 }
 
-impl<B: Backend> SmallCnn<B> {
-    fn new(device: &B::Device) -> Self {
+impl SmallCnn {
+    fn new(device: &Device) -> Self {
         let same = PaddingConfig2d::Explicit(1, 1, 1, 1); // keep 12x12 as 12x12
         Self {
             conv1: Conv2dConfig::new([1, 4], [3, 3])
@@ -85,7 +81,7 @@ impl<B: Backend> SmallCnn<B> {
         }
     }
 
-    fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 2> {
+    fn forward(&self, x: Tensor<4>) -> Tensor<2> {
         let x = self.pool.forward(relu(self.conv1.forward(x))); // [B, 4, 6, 6]
         let x = relu(self.conv2.forward(x)); //                    [B, 8, 6, 6]
         let [batch, channels, _, _] = x.dims();
@@ -94,7 +90,7 @@ impl<B: Backend> SmallCnn<B> {
     }
 
     // Replace the random init with fixed numbers, so main.py can use the SAME weights.
-    fn with_fixed_weights(mut self, device: &B::Device) -> Self {
+    fn with_fixed_weights(mut self, device: &Device) -> Self {
         let det = |n: usize, fan_in: usize, phase: f64| -> Vec<f32> {
             (0..n)
                 .map(|i| ((i as f64 * 2.3 + phase).sin() / (fan_in as f64).sqrt()) as f32)
@@ -113,11 +109,7 @@ impl<B: Backend> SmallCnn<B> {
     }
 }
 
-fn param<B: Backend, const D: usize>(
-    v: Vec<f32>,
-    shape: [usize; D],
-    device: &B::Device,
-) -> Param<Tensor<B, D>> {
+fn param<const D: usize>(v: Vec<f32>, shape: [usize; D], device: &Device) -> Param<Tensor<D>> {
     Param::from_tensor(Tensor::from_data(TensorData::new(v, shape), device))
 }
 
@@ -141,16 +133,16 @@ fn shapes_dataset(per_class: usize, seed: u32) -> InMemDataset<ShapeItem> {
 }
 
 #[derive(Clone, Debug)]
-struct ShapeBatch<B: Backend> {
-    images: Tensor<B, 4>,       // [batch, 1, 12, 12]
-    targets: Tensor<B, 1, Int>, // [batch]
+struct ShapeBatch {
+    images: Tensor<4>,       // [batch, 1, 12, 12]
+    targets: Tensor<1, Int>, // [batch]
 }
 
 #[derive(Clone, Default)]
 struct ShapeBatcher;
 
-impl<B: Backend> Batcher<B, ShapeItem, ShapeBatch<B>> for ShapeBatcher {
-    fn batch(&self, items: Vec<ShapeItem>, device: &B::Device) -> ShapeBatch<B> {
+impl Batcher<ShapeItem, ShapeBatch> for ShapeBatcher {
+    fn batch(&self, items: Vec<ShapeItem>, device: &Device) -> ShapeBatch {
         let n = items.len();
         let pixels: Vec<f32> = items.iter().flat_map(|it| it.pixels.clone()).collect();
         let labels: Vec<i64> = items.iter().map(|it| it.label as i64).collect();
@@ -161,29 +153,29 @@ impl<B: Backend> Batcher<B, ShapeItem, ShapeBatch<B>> for ShapeBatcher {
     }
 }
 
-fn accuracy<B: Backend>(model: &SmallCnn<B>, batch: ShapeBatch<B>) -> usize {
+fn accuracy(model: &SmallCnn, batch: ShapeBatch) -> usize {
     let n = batch.targets.dims()[0];
     let predicted = model.forward(batch.images).argmax(1).reshape([n]);
     predicted
         .equal(batch.targets)
         .int()
         .sum()
-        .into_scalar()
-        .elem::<i64>() as usize
+        .into_scalar::<i64>() as usize
 }
 
 // Example 13.4's training run, unchanged: 15 epochs of Adam on the shapes.
-fn train() -> SmallCnn<MyBackend> {
-    let device = &Default::default();
-    let loader =
-        DataLoaderBuilder::<MyBackend, ShapeItem, ShapeBatch<MyBackend>>::new(ShapeBatcher)
-            .batch_size(16)
-            .build(shapes_dataset(40, 42));
-    let mut model = SmallCnn::<MyBackend>::new(device).with_fixed_weights(device);
+fn train() -> SmallCnn {
+    let device = &Device::flex().autodiff();
+    let loader = DataLoaderBuilder::<ShapeItem, ShapeBatch>::new(ShapeBatcher)
+        .batch_size(16)
+        .set_device(device.clone())
+        .build(shapes_dataset(40, 42));
+    let mut model = SmallCnn::new(device).with_fixed_weights(device);
     let mut optim = AdamConfig::new().with_epsilon(1e-8).init();
     let loss_fn = CrossEntropyLossConfig::new().init(device);
     for _ in 0..15 {
         for batch in loader.iter() {
+            let batch = batch.expect("in-memory batch");
             let loss = loss_fn.forward(model.forward(batch.images), batch.targets);
             let grads = GradientsParams::from_grads(loss.backward(), &model);
             model = optim.step(0.02, model, grads);
@@ -194,21 +186,21 @@ fn train() -> SmallCnn<MyBackend> {
 
 // The symmetric int8 scheme of Chapter 21, applied to a whole weight tensor at once.
 // Returns the dequantised weights (what inference will actually use) and the scale.
-fn int8_round_trip<B: Backend, const D: usize>(w: Tensor<B, D>) -> (Tensor<B, D>, f32) {
-    let scale = w.clone().abs().max().into_scalar().elem::<f32>() / 127.0;
+fn int8_round_trip<const D: usize>(w: Tensor<D>) -> (Tensor<D>, f32) {
+    let scale = w.clone().abs().max().into_scalar::<f32>() / 127.0;
     let codes = w.div_scalar(scale).round().clamp(-127.0, 127.0); // whole numbers, one byte each
     (codes.mul_scalar(scale), scale)
 }
 
 /// Returns (conv1 filters, f32 correct, int8 correct, f32 bytes, int8 bytes).
 fn build() -> (Vec<f32>, usize, usize, usize, usize) {
-    let device = Default::default();
-    // .valid() drops the autodiff wrapper: inference runs on plain NdArray.
+    let device = Device::flex();
+    // .valid() drops autodiff and the training flags: inference runs on the plain flex device.
     let model = train().valid();
     let test = shapes_dataset(20, 7);
-    let batch = || ShapeBatcher.batch(test.iter().collect(), &device);
+    let batch = || ShapeBatcher.batch(test.iter().map(Result::unwrap).collect(), &device);
 
-    let filters: Vec<f32> = model.conv1.weight.val().into_data().to_vec().unwrap();
+    let filters: Vec<f32> = model.conv1.weight.val().into_data().try_to_vec().unwrap();
     let f32_correct = accuracy(&model, batch());
 
     // Quantise the three weight tensors. Biases (16 numbers) stay f32.

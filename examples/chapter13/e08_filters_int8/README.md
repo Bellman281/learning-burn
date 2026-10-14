@@ -3,8 +3,8 @@
 Trains exactly as 13.4, prints the four 3x3 filters of the first layer, then quantises every weight tensor to int8 with the symmetric scheme of Chapter 21.
 
 ```rust
-fn int8_round_trip<B: Backend, const D: usize>(w: Tensor<B, D>) -> (Tensor<B, D>, f32) {
-    let scale = w.clone().abs().max().into_scalar().elem::<f32>() / 127.0;
+fn int8_round_trip<const D: usize>(w: Tensor<D>) -> (Tensor<D>, f32) {
+    let scale = w.clone().abs().max().into_scalar::<f32>() / 127.0;
     let codes = w.div_scalar(scale).round().clamp(-127.0, 127.0);
     (codes.mul_scalar(scale), scale)
 }

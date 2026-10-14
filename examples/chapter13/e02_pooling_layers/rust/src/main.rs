@@ -1,8 +1,5 @@
-use burn::backend::NdArray;
 use burn::nn::pool::{AdaptiveAvgPool2dConfig, AvgPool2dConfig, MaxPool2dConfig};
-use burn::tensor::Tensor;
-
-type Backend = NdArray;
+use burn::tensor::{Device, Tensor};
 
 // How much of the input image one output pixel can "see", layer by layer.
 //   rf   grows by (k - 1) * jump
@@ -21,9 +18,9 @@ fn receptive_fields(layers: &[(&str, usize, usize)]) -> Vec<(String, usize)> {
 
 /// Returns (max pool, avg pool, global avg, adaptive 3x3, receptive fields).
 fn build() -> (Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>, Vec<(String, usize)>) {
-    let device = Default::default();
+    let device = Device::flex();
     // 1..16 laid out as a 4x4 image.
-    let x = Tensor::<Backend, 1>::from_floats(
+    let x = Tensor::<1>::from_floats(
         [
             1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13., 14., 15., 16.,
         ],
@@ -43,10 +40,10 @@ fn build() -> (Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>, Vec<(String, usize)>) {
     let rf = receptive_fields(&[("conv 3x3", 3, 1), ("pool 2x2", 2, 2), ("conv 3x3", 3, 1)]);
 
     (
-        max.into_data().to_vec().unwrap(),
-        avg.into_data().to_vec().unwrap(),
-        global.into_data().to_vec().unwrap(),
-        adaptive.into_data().to_vec().unwrap(),
+        max.into_data().try_to_vec().unwrap(),
+        avg.into_data().try_to_vec().unwrap(),
+        global.into_data().try_to_vec().unwrap(),
+        adaptive.into_data().try_to_vec().unwrap(),
         rf,
     )
 }

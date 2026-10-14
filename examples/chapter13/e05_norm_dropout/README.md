@@ -1,11 +1,11 @@
 # Example 13.5 — Normalisation and Dropout Layers
 
-`BatchNorm` in training mode (batch statistics, running-statistics update with momentum 0.1) and in eval mode (running statistics), `LayerNorm` with a learned scale and shift, and `Dropout(0.25)`. Burn has no `train()`/`eval()` switch: the backend decides. On `Autodiff<NdArray>` BatchNorm uses batch statistics and Dropout is active; after `.valid()`, on plain `NdArray`, BatchNorm uses its running statistics and Dropout returns its input.
+`BatchNorm` in training mode (batch statistics, running-statistics update with momentum 0.1) and in eval mode (running statistics), `LayerNorm` with a learned scale and shift, and `Dropout(0.25)`. A layer behaves as in training when its input lives on an autodiff device *and* its own training flag is on (it is on after `init`). On `Device::flex().autodiff()` BatchNorm uses batch statistics and Dropout is active; `.valid()` returns a copy with autodiff and the training flags off, so BatchNorm uses its running statistics, and Dropout returns its input on a plain `Device::flex()`.
 
 ```rust
-let y_train = bn.forward(bn_input::<Train>(&device)); // Autodiff: batch stats
-let bn_eval = bn.valid(); //                             NdArray: running stats
-let y_eval = bn_eval.forward(bn_input::<Eval>(&device));
+let y_train = bn.forward(bn_input(&device)); // autodiff device: batch stats
+let bn_eval = bn.valid(); //                    flag off, no autodiff: running stats
+let y_eval = bn_eval.forward(bn_input(&eval_device()));
 ```
 
 ## Files

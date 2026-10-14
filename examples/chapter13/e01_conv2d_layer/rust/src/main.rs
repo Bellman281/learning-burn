@@ -1,12 +1,9 @@
-use burn::backend::NdArray;
 use burn::module::Param;
 use burn::nn::PaddingConfig2d;
 use burn::nn::conv::Conv2dConfig;
-use burn::tensor::Tensor;
 use burn::tensor::module::conv2d;
 use burn::tensor::ops::ConvOptions;
-
-type Backend = NdArray;
+use burn::tensor::{Device, Tensor};
 
 // Chapter 11's output-size rule, one spatial axis at a time:
 //   out = (n + 2*padding - dilation*(k - 1) - 1) / stride + 1
@@ -22,10 +19,10 @@ fn build() -> (
     Vec<(&'static str, usize, usize)>,
     [usize; 4],
 ) {
-    let device = Default::default();
+    let device = Device::flex();
 
     // 1. A 5x5 image: dark on the left, bright on the right.
-    let image = Tensor::<Backend, 2>::from_floats(
+    let image = Tensor::<2>::from_floats(
         [
             [0.0, 0.0, 1.0, 1.0, 1.0],
             [0.0, 0.0, 1.0, 1.0, 1.0],
@@ -38,7 +35,7 @@ fn build() -> (
     .reshape([1, 1, 5, 5]); // [batch, channels, height, width]
 
     // A vertical-edge kernel: right column minus left column.
-    let kernel = Tensor::<Backend, 2>::from_floats(
+    let kernel = Tensor::<2>::from_floats(
         [[-1.0, 0.0, 1.0], [-1.0, 0.0, 1.0], [-1.0, 0.0, 1.0]],
         &device,
     )
@@ -55,19 +52,19 @@ fn build() -> (
     // This chapter's way: a layer that OWNS its weight as a Param.
     let mut layer = Conv2dConfig::new([1, 1], [3, 3])
         .with_bias(false)
-        .init::<Backend>(&device);
+        .init(&device);
     layer.weight = Param::from_tensor(kernel); // replace the random init
     let by_layer = layer.forward(image);
     println!("edge map shape = {:?}", by_layer.dims()); // [1, 1, 3, 3]
 
     // 2. The default init: uniform in +-1/sqrt(fan_in), the same bound as PyTorch's.
-    let fresh = Conv2dConfig::new([1, 8], [3, 3]).init::<Backend>(&device);
+    let fresh = Conv2dConfig::new([1, 8], [3, 3]).init(&device);
     let bound = 1.0 / (1.0f32 * 3.0 * 3.0).sqrt(); // fan_in = in_ch * kh * kw = 9
-    let weights: Vec<f32> = fresh.weight.val().into_data().to_vec().unwrap();
+    let weights: Vec<f32> = fresh.weight.val().into_data().try_to_vec().unwrap();
     let within = weights.iter().all(|w| w.abs() <= bound);
 
     // 3. The shape rule, checked against the real nn::Conv2d layer.
-    let x = Tensor::<Backend, 4>::zeros([1, 1, 12, 12], &device);
+    let x = Tensor::<4>::zeros([1, 1, 12, 12], &device);
     let cases = [
         ("valid, stride 1", 0, 1, 1),
         ("padding 1", 1, 1, 1),
@@ -81,14 +78,14 @@ fn build() -> (
             .with_padding(PaddingConfig2d::Explicit(p, p, p, p))
             .with_stride([s, s])
             .with_dilation([d, d])
-            .init::<Backend>(&device);
+            .init(&device);
         weight_dims = conv.weight.dims();
         let got = conv.forward(x.clone()).dims()[2];
         shapes.push((name, out_len(12, 3, p, s, d), got));
     }
     (
-        by_function.into_data().to_vec().unwrap(),
-        by_layer.into_data().to_vec().unwrap(),
+        by_function.into_data().try_to_vec().unwrap(),
+        by_layer.into_data().try_to_vec().unwrap(),
         within,
         shapes,
         weight_dims,
