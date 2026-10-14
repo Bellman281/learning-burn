@@ -4,7 +4,7 @@
   <img src="img/cover.png" alt="Learning Burn — book cover" width="360">
 </p>
 
-[![Burn](https://img.shields.io/badge/burn-0.21.0-3b5b92)](https://github.com/tracel-ai/burn)
+[![Burn](https://img.shields.io/badge/burn-0.22.0-3b5b92)](https://github.com/tracel-ai/burn)
 [![Rust](https://img.shields.io/badge/rust-2024_edition-dea584?logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-omidpolyO-FFDD00?logo=buymeacoffee&logoColor=black)](https://www.buymeacoffee.com/omidpolyO)
@@ -29,9 +29,9 @@ your laptop.**
 | "Inference is fast, but the *service* is slow" | No interpreter, no GIL, no GC pauses. Predictable p99 latency. |
 | "Deployment is a 4 GB Docker image and a dependency hell" | One static binary. No Python, no CUDA runtime, no `requirements.txt`. |
 | "It needs to run on the device, not the cloud" | `no_std`. Weights compiled into the firmware. **A 2,410-parameter model is 2.4 KB quantised** — it fits on a microcontroller with 256 KB of SRAM. |
-| "It fails at 3 a.m. with a shape error" | Tensor rank is part of the type. `Tensor<B, 2>` and `Tensor<B, 3>` are different types; mixing them doesn't compile. |
+| "It fails at 3 a.m. with a shape error" | Tensor rank is part of the type. `Tensor<2>` and `Tensor<3>` are different types; mixing them doesn't compile. |
 | "Two teams: researchers in Python, engineers rewriting in C++" | One language for both. The training code and the deployed code are the same code. |
-| "Different code for CPU, GPU, and the device" | The backend is a *type parameter*. `run::<NdArray>()`, `run::<Wgpu>()`, `run::<Chip>()` — same function body, chosen at the call site. |
+| "Different code for CPU, GPU, and the device" | The device is a *value*. `run(&Device::flex())`, `run(&Device::wgpu(..))`, or a `no_std` build for the chip — same function body; Cargo features decide which backends are compiled in. |
 
 If none of those are your problem, close the tab — with our blessing. If one of
 them is the reason your last project stalled, this repo is worth an afternoon.
@@ -67,37 +67,40 @@ cargo run -- -c 3 -e 1 python
 
 ---
 
-## What's in the twenty-one chapters
+## What's in the book
 
-**Foundations** — Rust for Python people (ownership, borrowing, traits — no Burn
-yet) · tensors · elementwise ops and broadcasting · matmul and the shape rule ·
-norms, determinant, Gram matrix · autodiff.
+Twenty-six chapters in six parts, plus an appendix. Every idea is built by hand
+first, then done the Burn way, and checked against PyTorch.
 
-**Learning** — linear regression by hand · activations and *why ReLU beat sigmoid*
-(it's one number: 0.25) · MSE and cross-entropy · SGD and the learning rate ·
-**backpropagation** — the chain rule with numbers small enough to check on paper ·
-a network built from scratch, with the gradients derived by hand and then verified
-against autodiff.
+**Appendix A (`-c 0`)** — Rust for Python people: ownership, borrowing, traits,
+generics. No Burn yet; read it first if Rust is new to you.
 
-**Building** — attention, causal masking, multi-head, a full transformer block ·
-**convolutions**: a CNN built as a `#[derive(Module)]`, trained on mini-batches, and
-quantised to int8 with no loss of accuracy.
+**Part I, Foundations (Chapters 1–4)** — tensors and devices · elementwise ops and
+broadcasting · matmul and the shape rule, norms, determinant, Gram matrix · autodiff,
+and linear regression by gradient descent.
 
-**Shipping** — save/load and the f32-vs-f16 trade-off · bare-metal: weights baked
-into the binary, backend-agnostic inference, int8 quantisation, memory footprint ·
-**firmware in Rust**: a 28.9M-parameter language model on an ESP32-S3, walked through
-from [esp32-tinyLLM](https://github.com/Bellman281/esp32-tinyLLM) (needs an
+**Part II, Learning by Hand (5–11)** — activations and *why ReLU beat sigmoid* (it's one
+number: 0.25) · losses · optimizers and schedules · **backpropagation** with numbers
+small enough to check on paper · a network built from scratch · attention and a
+transformer block · **convolutions** from loops, with the backward pass by hand.
+
+**Part III, Building with Burn (12–14)** — feeding the model (`Dataset`, `Batcher`,
+`DataLoader`, worker threads) · modern architectures with `burn::nn` (BatchNorm,
+residual blocks, a small ResNet, a transformer encoder) · the `Learner`, metrics and
+checkpoints that resume exactly.
+
+**Part IV, Generative Models (15–18)** — language models and diffusion / flow
+matching, from scratch and the Burn way. *In preparation.*
+
+**Part V, Shipping (19–22)** — saving and importing (burnpack, `.pt` and safetensors
+via `burn-store`, ONNX via `burn-onnx`) · serving: an axum server, batching and
+micro-batching · bare-metal: weights in the binary, int8, the memory budget ·
+**firmware in Rust**: a 28.9M-parameter language model on an ESP32-S3, from
+[esp32-tinyLLM](https://github.com/Bellman281/esp32-tinyLLM) (needs an
 ESP32-S3-DevKitC N16R8 for the on-chip part; everything else runs on a laptop).
 
-**Data** — feeding the model: `Dataset`, `Batcher` and `DataLoader`; rows from a CSV
-with serde, a lazily decoded image folder, seeded splits and per-epoch shuffling,
-augmentation as a `Mapper`, and worker threads.
-
-**Production** — the Burn way to train: `#[derive(Config)]`, `TrainStep`/`InferenceStep`,
-the `Learner`, metrics, checkpoints that resume exactly · importing PyTorch models:
-`.pt` and safetensors via `burn-store`, ONNX via `burn-onnx` code generation, every
-route checked against PyTorch's logits · serving: an axum inference server,
-batch-size vs throughput, micro-batching under load, and CPU/GPU backends.
+**Part VI, On the Edge (23–26)** — streaming inference, keyword spotting, real-time
+denoising, Wi-Fi sensing. *In preparation.*
 
 Full list in [`examples/`](examples/).
 
@@ -105,7 +108,7 @@ Full list in [`examples/`](examples/).
 
 ## Credit
 
-Built on [**Burn**](https://github.com/tracel-ai/burn) (pinned to 0.21.0). The
+Built on [**Burn**](https://github.com/tracel-ai/burn) (pinned to 0.22.0). The
 framework is theirs; this repo is original example code against its public API.
 **If this is useful to you, star [the Burn team](https://github.com/tracel-ai/burn),
 not us.** They did the hard part.
@@ -115,7 +118,7 @@ not us.** They did the hard part.
 Apache 2.0 — see [`LICENSE`](LICENSE). Copyright © 2026 
 
 **Omid Safarzadeh** ([@Bellman281](https://github.com/Bellman281)),
-**Hossein Jalili** ([@jhosein58](https://github.com/jhosein58))
+**Hosein Jalili** ([@jhosein58](https://github.com/jhosein58))
 and **Pooya Mohammadi** ([@pooya-mohammadi](https://github.com/pooya-mohammadi)).
 
 If you adapt
