@@ -11,4 +11,5 @@ On servers, memory constraints are solved by scaling hardware. On microcontrolle
   - **F32 (Full Precision):** 4 bytes per parameter (highest memory cost).
   - **F16 (Half Precision):** 2 bytes per parameter (moderate memory savings).
   - **Int8 (Quantized):** 1 byte per parameter (maximum efficiency, fitting up to 4x larger models on the same hardware).
+- **The Embedded Image:** The program also prints the size of the model's burnpack image (Example 21.1's format), which is what actually sits in flash: the f32 weights plus a small header, the tensor metadata, and padding that starts every tensor on a 256-byte boundary.
 - **Activation Overhead:** Real-world deployments must budget not only for the static weight size but also for the transient activation tensors flowing through the layer nodes during the forward inference pass.
