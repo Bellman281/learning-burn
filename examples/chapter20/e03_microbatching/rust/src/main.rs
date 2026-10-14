@@ -4,14 +4,12 @@ use std::time::{Duration, Instant};
 use axum::Router;
 use axum::extract::{Json, State};
 use axum::routing::post;
-use burn::backend::NdArray;
 use burn::module::Module;
 use burn::nn::conv::{Conv2d, Conv2dConfig};
 use burn::nn::pool::{AdaptiveAvgPool2d, AdaptiveAvgPool2dConfig, MaxPool2d, MaxPool2dConfig};
 use burn::nn::{Linear, LinearConfig, PaddingConfig2d};
 use burn::tensor::activation::relu;
-use burn::tensor::backend::Backend;
-use burn::tensor::{Tensor, TensorData};
+use burn::tensor::{Device, Tensor, TensorData};
 use burn_store::{ModuleSnapshot, PyTorchToBurnAdapter, SafetensorsStore};
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, oneshot};
@@ -63,16 +61,16 @@ fn make_image(class: usize, rng: &mut Lcg) -> Vec<f32> {
 
 // --- the model: Chapter 13's CNN, weights from Chapter 19's safetensors file ---
 #[derive(Module, Debug)]
-struct SmallCnn<B: Backend> {
-    conv1: Conv2d<B>,
+struct SmallCnn {
+    conv1: Conv2d,
     pool: MaxPool2d,
-    conv2: Conv2d<B>,
+    conv2: Conv2d,
     gap: AdaptiveAvgPool2d,
-    head: Linear<B>,
+    head: Linear,
 }
 
-impl<B: Backend> SmallCnn<B> {
-    fn new(device: &B::Device) -> Self {
+impl SmallCnn {
+    fn new(device: &Device) -> Self {
         let same = PaddingConfig2d::Explicit(1, 1, 1, 1);
         Self {
             conv1: Conv2dConfig::new([1, 4], [3, 3])
@@ -87,7 +85,7 @@ impl<B: Backend> SmallCnn<B> {
         }
     }
 
-    fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 2> {
+    fn forward(&self, x: Tensor<4>) -> Tensor<2> {
         let x = self.pool.forward(relu(self.conv1.forward(x)));
         let x = relu(self.conv2.forward(x));
         let [batch, channels, _, _] = x.dims();
@@ -101,7 +99,7 @@ const WEIGHTS: &str = concat!(
     "/../../../chapter19/weights/small_cnn.safetensors"
 );
 
-fn load_model<B: Backend>(device: &B::Device) -> SmallCnn<B> {
+fn load_model(device: &Device) -> SmallCnn {
     let mut store = SafetensorsStore::from_file(WEIGHTS)
         .with_from_adapter(PyTorchToBurnAdapter)
         .with_key_remapping(r"^features\.0\.(.+)$", "conv1.$1")
@@ -130,15 +128,15 @@ fn argmax(row: &[f32]) -> usize {
 
 // ---- strategy A: every request runs its own forward pass (on a blocking thread) ----
 async fn predict_direct(
-    State(model): State<Arc<SmallCnn<NdArray>>>,
+    State(model): State<Arc<SmallCnn>>,
     Json(req): Json<PredictRequest>,
 ) -> Json<PredictResponse> {
     let class = tokio::task::spawn_blocking(move || {
         let x = Tensor::from_data(
             TensorData::new(req.pixels, [1, 1, SIZE, SIZE]),
-            &Default::default(),
+            &Device::flex(),
         );
-        argmax(&model.forward(x).into_data().to_vec::<f32>().unwrap())
+        argmax(&model.forward(x).into_data().try_to_vec::<f32>().unwrap())
     })
     .await
     .unwrap();
@@ -148,14 +146,10 @@ async fn predict_direct(
 // ---- strategy B: requests queue up; one worker runs them in batches ----
 type Job = (Vec<f32>, oneshot::Sender<usize>);
 
-fn spawn_batcher(
-    model: SmallCnn<NdArray>,
-    max_batch: usize,
-    max_wait: Duration,
-) -> mpsc::Sender<Job> {
+fn spawn_batcher(model: SmallCnn, max_batch: usize, max_wait: Duration) -> mpsc::Sender<Job> {
     let (tx, mut rx) = mpsc::channel::<Job>(1024);
     std::thread::spawn(move || {
-        let device = Default::default();
+        let device = Device::flex();
         // Block until the first request arrives, then collect more for at most max_wait.
         while let Some(first) = rx.blocking_recv() {
             let mut jobs = vec![first];
@@ -168,11 +162,8 @@ fn spawn_batcher(
             }
             let n = jobs.len();
             let pixels: Vec<f32> = jobs.iter().flat_map(|(p, _)| p.iter().copied()).collect();
-            let x = Tensor::<NdArray, 4>::from_data(
-                TensorData::new(pixels, [n, 1, SIZE, SIZE]),
-                &device,
-            );
-            let logits: Vec<f32> = model.forward(x).into_data().to_vec().unwrap();
+            let x = Tensor::<4>::from_data(TensorData::new(pixels, [n, 1, SIZE, SIZE]), &device);
+            let logits: Vec<f32> = model.forward(x).into_data().try_to_vec().unwrap();
             for ((_, reply), row) in jobs.into_iter().zip(logits.chunks(4)) {
                 let _ = reply.send(argmax(row));
             }
@@ -259,15 +250,15 @@ async fn load_test(app: Router, clients: usize, per_client: usize) -> Report {
 
 /// Returns (direct report, batched report, mean batch size).
 async fn build() -> (Report, Report, f64) {
-    let device = Default::default();
+    let device = Device::flex();
     let (clients, per_client) = (32, 40);
 
     let direct = Router::new()
         .route("/predict", post(predict_direct))
-        .with_state(Arc::new(load_model::<NdArray>(&device)));
+        .with_state(Arc::new(load_model(&device)));
     let a = load_test(direct, clients, per_client).await;
 
-    let queue = spawn_batcher(load_model::<NdArray>(&device), 32, Duration::from_millis(2));
+    let queue = spawn_batcher(load_model(&device), 32, Duration::from_millis(2));
     let batched = Router::new()
         .route("/predict", post(predict_batched))
         .with_state(queue);
